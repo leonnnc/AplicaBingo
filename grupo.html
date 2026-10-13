@@ -23,10 +23,7 @@
             <label for="inAlias">Alias o nombre</label>
             <input class="g-input" id="inAlias" maxlength="16" placeholder="Ej. Ana" autocomplete="off" required>
         </div>
-        <div>
-            <label for="inSala">Código de sala <small>(vacío = crear sala nueva)</small></label>
-            <input class="g-input codigo" id="inSala" maxlength="4" placeholder="XXXX" autocomplete="off">
-        </div>
+        <p class="g-destino" id="inDestino">…</p>
         <div class="g-row">
             <button class="g-btn" type="submit" id="btnIngresar">Entrar a la sala</button>
         </div>
@@ -113,6 +110,7 @@
                                 </select>
                             </div>
                         </div>
+                        <p class="g-enlace" id="enlaceSala" title="Pulsa para copiar el enlace de la sala">—</p>
                         <label class="g-check" style="margin-top:.6rem">
                             <input type="checkbox" id="cfCantoAuto">
                             Cantar línea/apagón automáticamente al completarse

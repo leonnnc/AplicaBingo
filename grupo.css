@@ -44,7 +44,15 @@ body.grupo {
     border: 2px solid #dfc4c4; background: #fff8f8; color: #2c2c2e; font-family: inherit;
 }
 .g-input:focus { outline: none; border-color: var(--g-gold-1); background: #fff; }
-.g-input.codigo { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700; text-align: center; }
+.g-destino {
+    font-size: 0.82rem; text-align: center; color: #6b4a4a; line-height: 1.45;
+    background: #fff8f8; border: 2px dashed #e6cfcf; border-radius: 10px; padding: 0.55rem 0.6rem;
+}
+.g-destino strong { color: #7c1d1d; }
+.g-enlace {
+    margin-top: 0.6rem; font-size: 0.72rem; color: #7c1d1d; word-break: break-all; cursor: pointer;
+    background: #fff8f8; border: 2px dashed #e6cfcf; border-radius: 8px; padding: 0.45rem 0.55rem;
+}
 .g-row { display: flex; gap: 0.6rem; align-items: flex-end; }
 .g-row > * { flex: 1; }
 

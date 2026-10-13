@@ -98,12 +98,23 @@
     $('formIngreso').addEventListener('submit', (e) => {
         e.preventDefault();
         const alias = $('inAlias').value.trim();
-        let sala = $('inSala').value.trim().toUpperCase();
         if (!alias) { $('inError').textContent = 'Escribe tu alias o nombre'; return; }
-        if (!sala) sala = Math.random().toString(36).slice(2, 6).toUpperCase();
+        // Sin enlace de sala, el primero en entrar crea la suya y canta.
+        if (!codigo) codigo = Math.random().toString(36).slice(2, 6).toUpperCase();
         $('inError').textContent = '';
-        entrar(alias, sala);
+        entrar(alias, codigo);
     });
+
+    function actualizarDestino() {
+        const el = $('inDestino');
+        if (!el) return;
+        if (codigo) {
+            el.innerHTML = 'Entrarás a la sala <strong>' + codigo + '</strong>. El primero que entra canta; los demás juegan con sus cartones.';
+        } else {
+            el.innerHTML = 'Abriste el juego sin enlace de sala: al entrar <strong>crearás una sala nueva</strong> y serás el <strong>cantador</strong>. ' +
+                'Después comparte el enlace con los jugadores.';
+        }
+    }
 
     /* --------------------------- conexión --------------------------- */
 
@@ -192,6 +203,7 @@
         if (document.activeElement !== $('cfTipoLinea')) $('cfTipoLinea').value = estado.tipoLinea;
         if (document.activeElement !== $('cfLetras')) $('cfLetras').value = estado.config.letras;
         $('cfCantoAuto').checked = !!estado.cantarAutomatico;
+        $('enlaceSala').textContent = 'Enlace para jugadores: ' + urlSala() + '  (toca para copiar)';
 
         const d = estado.dinero;
         $('kpis').innerHTML =
@@ -382,11 +394,14 @@
     });
 
     // Cabecera
-    $('btnCopiar').addEventListener('click', async () => {
-        const url = location.origin + '/grupo.html?sala=' + codigo;
+    const urlSala = () => location.origin + '/grupo.html?sala=' + codigo;
+    async function copiarEnlace() {
+        const url = urlSala();
         try { await navigator.clipboard.writeText(url); toast('Enlace copiado: ' + url); }
         catch (e) { prompt('Comparte este enlace con los jugadores:', url); }
-    });
+    }
+    $('btnCopiar').addEventListener('click', copiarEnlace);
+    $('enlaceSala').addEventListener('click', copiarEnlace);
     $('btnRecargar').addEventListener('click', () => location.reload());
 
     window.addEventListener('keydown', (e) => {
@@ -400,7 +415,7 @@
     /* --------------------------- arranque --------------------------- */
 
     $('inAlias').value = localStorage.getItem('bg_alias') || '';
-    $('inSala').value = codigo || '';
+    actualizarDestino();
 
     if (codigo && localStorage.getItem('bg_alias')) {
         entrar(localStorage.getItem('bg_alias'), codigo);
