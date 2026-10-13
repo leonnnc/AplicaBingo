@@ -875,3 +875,54 @@ body {
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     }
 }
+
+/* ==========================================================================
+   AplicaBingo — Modo local: marca, fondo del cartón y controles de fondo
+   ========================================================================== */
+
+.marca-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 0.6rem; flex-wrap: wrap;
+}
+.marca-bar .marca-titulo { display: flex; align-items: center; gap: 0.45rem; }
+.marca-bar .marca-bola { font-size: 1.5rem; }
+.marca-bar a { color: #8d5300; font-weight: 700; font-size: 0.85rem; text-decoration: none; }
+.marca-bar a:hover { text-decoration: underline; }
+
+/* La foto (o el patrón) va detrás de los números del cartón */
+.bingo-card { overflow: hidden; }
+.bingo-card::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background-image: var(--carton-foto, none);
+    background-size: cover; background-position: center; background-repeat: no-repeat;
+    opacity: var(--carton-opacidad, 0);
+}
+.bingo-card > .card-top, .bingo-card > .card-grid { position: relative; z-index: 1; }
+
+body.fondo-papel .bingo-card::before {
+    background-image:
+        repeating-linear-gradient(45deg, rgba(160, 120, 80, 0.55) 0 6px, rgba(255, 255, 255, 0) 6px 12px),
+        repeating-linear-gradient(-45deg, rgba(160, 120, 80, 0.35) 0 6px, rgba(255, 255, 255, 0) 6px 12px);
+    opacity: 0.45;
+}
+body.fondo-tela .bingo-card::before {
+    background-image:
+        repeating-linear-gradient(0deg, rgba(90, 60, 120, 0.4) 0 3px, rgba(255, 255, 255, 0) 3px 7px),
+        repeating-linear-gradient(90deg, rgba(90, 60, 120, 0.28) 0 3px, rgba(255, 255, 255, 0) 3px 7px);
+    opacity: 0.5;
+}
+body.fondo-madera .bingo-card::before {
+    background-image: repeating-linear-gradient(90deg, rgba(120, 70, 30, 0.45) 0 14px, rgba(190, 130, 70, 0.3) 14px 22px);
+    opacity: 0.45;
+}
+.card-cell.locked { background: rgba(239, 241, 244, 0.86); }
+
+.fondo-bar {
+    display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center;
+    margin: 0.55rem 0; padding: 0.45rem 0.5rem;
+    background: rgba(255, 255, 255, 0.7); border: 1px dashed #e0d0d0; border-radius: 8px;
+}
+.fondo-bar .fondo-label { font-size: 0.72rem; font-weight: 700; color: #6b4a4a; }
+.fondo-bar .btn-tool { padding: 0.28rem 0.5rem; font-size: 0.72rem; }
+.fondo-bar .fondo-rango { display: flex; align-items: center; gap: 0.3rem; font-size: 0.68rem; color: #6b4a4a; }
+.fondo-bar .fondo-rango input { width: 90px; }

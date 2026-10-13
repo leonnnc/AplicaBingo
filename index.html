@@ -2,164 +2,129 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bombo Bingo Online Gratis</title>
-    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AplicaBingo — Entrar a la sala</title>
+    <link rel="stylesheet" href="grupo.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Playfair+Display:ital,wght@1,500;1,700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        .entrada-pasos { list-style: none; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.8rem; color: #6b4a4a; }
+        .entrada-pasos li { display: flex; gap: 0.5rem; align-items: flex-start; background: #fff8f8; border: 2px solid #f0dcdc; border-radius: 10px; padding: 0.45rem 0.55rem; line-height: 1.35; }
+        .entrada-pasos b { color: #7c1d1d; }
+        .entrada-pasos .n { background: var(--g-gold-1); color: #402804; border-radius: 999px; width: 1.35rem; height: 1.35rem; display: flex; align-items: center; justify-content: center; font-weight: 700; flex: 0 0 auto; }
+        .entrada-acciones { display: grid; gap: 0.5rem; }
+        .entrada-pie { font-size: 0.75rem; text-align: center; color: #8a7a7a; }
+        .entrada-pie a { color: #8d5300; font-weight: 700; }
+    </style>
 </head>
-<body>
-    <div class="app-container">
-        <!-- Encabezado -->
-        <header class="header">
-            <h1 class="main-title">Bombo Bingo online gratis</h1>
-            <p style="margin-top:.5rem;font-size:.9rem">👥 <a href="grupo.html" style="color:#8d5300;font-weight:700">Jugar en grupo (varios celulares en la misma red)</a></p>
-        </header>
-
-        <div class="app-layout">
-            <!-- Columna principal: Bombo / Sorteo -->
-            <main class="bingo-stage">
-                <!-- Pantalla Principal de Número Actual -->
-                <div class="display-row" id="displayRow">
-                    <div class="digit-card letter-card" id="cardLetter">
-                        <span class="card-value" id="valLetter">A</span>
-                    </div>
-                    <div class="digit-card tens-card" id="cardTens">
-                        <span class="card-value" id="valTens">0</span>
-                    </div>
-                    <div class="digit-card units-card" id="cardUnits">
-                        <span class="card-value" id="valUnits">0</span>
-                    </div>
-                </div>
-
-                <!-- Botón Principal de Sorteo -->
-                <button id="btnDraw" class="btn-draw" type="button">
-                    <span class="btn-text">Sortear números</span>
-                </button>
-
-                <!-- Barra de Herramientas y Controles Auxiliares -->
-                <div class="controls-panel">
-                    <div class="stat-badge">
-                        <span>Cantados:</span>
-                        <strong id="drawnCount">0</strong> / <span id="totalCount">75</span>
-                    </div>
-
-                    <div class="action-buttons">
-                        <button id="btnAuto" class="btn-tool" title="Modo automático">
-                            <span class="icon">⏱️</span> Auto: <span id="autoState">OFF</span>
-                        </button>
-                        <button id="btnVoiceToggle" class="btn-tool active" title="Activar/Desactivar Voz">
-                            <span class="icon" id="voiceIcon">🔊</span> Voz: <span id="voiceState">ON</span>
-                        </button>
-                        <button id="btnRepeat" class="btn-tool" title="Repetir último número cantado">
-                            <span class="icon">🗣️</span> Repetir
-                        </button>
-                        <button id="btnReset" class="btn-tool btn-danger" title="Reiniciar Juego">
-                            <span class="icon">🔄</span> Reiniciar
-                        </button>
-                        <button id="btnSettings" class="btn-tool" title="Configuración">
-                            <span class="icon">⚙️</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Panel de Configuración Plegable -->
-                <div id="settingsModal" class="settings-drawer hidden">
-                    <div class="drawer-header">
-                        <h3>Configuración del Bingo</h3>
-                        <button id="btnCloseSettings" class="btn-close">&times;</button>
-                    </div>
-                    <div class="setting-item">
-                        <label for="namingMode">Tipo de Letras:</label>
-                        <select id="namingMode" class="form-select">
-                            <option value="ABCDE" selected>A - B - C - D - E (Tradicional 1-75)</option>
-                            <option value="BINGO">B - I - N - G - O (Americano 1-75)</option>
-                        </select>
-                    </div>
-                    <div class="setting-item">
-                        <label for="voiceSelect">Voz del Locutor:</label>
-                        <select id="voiceSelect" class="form-select">
-                            <option value="">Cargando voces en español...</option>
-                        </select>
-                    </div>
-                    <div class="setting-item">
-                        <label for="speechRate">Velocidad de voz: <span id="rateVal">1.0x</span></label>
-                        <input type="range" id="speechRate" min="0.7" max="1.4" step="0.1" value="1.0">
-                    </div>
-                    <div class="setting-item">
-                        <label for="autoSpeed">Intervalo de Sorteo Auto: <span id="autoSpeedVal">4s</span></label>
-                        <input type="range" id="autoSpeed" min="2" max="10" step="1" value="4">
-                    </div>
-                </div>
-
-                <!-- Tablero de Números -->
-                <div class="board-wrapper">
-                    <table class="bingo-board" id="bingoBoard">
-                        <tbody id="boardBody">
-                            <!-- Generado dinámicamente por JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Historial de Últimas Bolas -->
-                <div class="history-container">
-                    <span class="history-label">Últimas cantadas:</span>
-                    <div class="history-list" id="historyList">
-                        <span class="empty-history">Ningún número extraído aún</span>
-                    </div>
-                </div>
-            </main>
-
-            <!-- Columna lateral: Cartones del Jugador -->
-            <aside class="cards-panel">
-                <div class="panel-header">
-                    <h2 class="panel-title">🎟️ Mis cartones</h2>
-                    <span class="panel-counter"><strong id="cardCount">0</strong> / 6</span>
-                </div>
-
-                <p class="panel-hint">
-                    Consigue hasta 6 cartones. Cuando salga la letra y el número, tócalo en tu cartón para marcarlo.
-                </p>
-
-                <div class="cards-actions">
-                    <button id="btnAddCard" class="btn-tool btn-primary-soft" type="button">＋ Generar cartón</button>
-                    <button id="btnAdd3" class="btn-tool" type="button" title="Añadir 3 cartones">+3</button>
-                    <button id="btnAdd6" class="btn-tool" type="button" title="Completar hasta 6 cartones">6 máx</button>
-                    <button id="btnClearCards" class="btn-tool btn-danger" type="button" title="Quitar todos los cartones">🗑️</button>
-                </div>
-
-                <label class="switch-row" for="autoDaub">
-                    <input type="checkbox" id="autoDaub">
-                    <span>Marcado automático (tacha solo)</span>
-                </label>
-
-                <div class="cards-list" id="cardsList">
-                    <p class="empty-cards" id="emptyCards">
-                        Todavía no tienes cartones.<br>Pulsa «Generar cartón» para empezar a jugar.
-                    </p>
-                </div>
-            </aside>
+<body class="grupo">
+<div class="ingreso-wrap">
+    <form class="ingreso-card" id="formEntrada" autocomplete="off">
+        <div class="marca">
+            <span class="marca-bola">🎱</span>
+            <h1>AplicaBingo</h1>
         </div>
-    </div>
-
-    <!-- Aviso Flotante de Bingo -->
-    <div id="bingoToast" class="bingo-toast hidden">
-        <span id="bingoToastText">¡BINGO!</span>
-    </div>
-
-    <!-- Modal de Confirmación para Reiniciar -->
-    <div id="confirmModal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <h3>¿Reiniciar partida?</h3>
-            <p>Se borrarán todos los números extraídos, las marcas de tus cartones y el tablero volverá a cero.</p>
-            <div class="modal-actions">
-                <button id="btnCancelReset" class="btn-modal btn-secondary">Cancelar</button>
-                <button id="btnConfirmReset" class="btn-modal btn-danger">Sí, Reiniciar</button>
-            </div>
+        <p class="sub">
+            Todos entran aquí. El <strong>primero que entra crea la sala y canta</strong>; los demás escriben
+            su alias, reciben sus cartones, <strong>abonan</strong> lo que les toca y esperan el canto.
+        </p>
+        <div>
+            <label for="inAlias">Tu alias o nombre</label>
+            <input class="g-input" id="inAlias" maxlength="16" placeholder="Ej. Ana" required>
         </div>
-    </div>
+        <div>
+            <label for="inSala">Código de sala (solo si te lo pasaron)</label>
+            <input class="g-input" id="inSala" maxlength="8" placeholder="Déjalo vacío para crear una sala">
+        </div>
+        <p class="g-destino" id="inDestino">…</p>
+        <div class="entrada-acciones">
+            <button class="g-btn" type="submit" id="btnEntrar">Entrar a la sala</button>
+            <button class="g-btn ghost" type="button" id="btnCrear">Crear sala nueva (seré el cantador)</button>
+        </div>
+        <ul class="entrada-pasos">
+            <li><span class="n">1</span><span><b>Alias y entrar:</b> el primero crea la sala y canta; si sale, el bombo pasa al siguiente.</span></li>
+            <li><span class="n">2</span><span><b>Cartones y abono:</b> cada jugador pide sus cartones y abona lo que le toca antes de jugar.</span></li>
+            <li><span class="n">3</span><span><b>Cotejo:</b> al cantar línea o apagón el cantador ve el cartón congelado y verifica si ganó.</span></li>
+        </ul>
+        <p class="g-alert" id="inError"></p>
+        <p class="entrada-pie">¿Un solo celular o PC? <a href="solo.html">Jugar en modo local</a>.</p>
+    </form>
+</div>
 
-    <script src="app.js"></script>
+<script>
+(() => {
+    'use strict';
+    const $ = (id) => document.getElementById(id);
+    const params = new URLSearchParams(location.search);
+    let codigo = (params.get('sala') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    function pista() {
+        if (location.protocol === 'file:') {
+            return 'Abre esta página desde el servidor del juego: ejecuta «node server.js» y entra por http://localhost:3000/';
+        }
+        return 'No se pudo hablar con el servidor del juego en ' + location.origin +
+            '. Ejecuta «node server.js» en la carpeta del proyecto y entra por http://localhost:3000/ ' +
+            '(no uses Live Server ni otro servidor estático: solo devuelven archivos, no el juego).';
+    }
+
+    async function comprobarServidor() {
+        if (location.protocol === 'file:') { $('inDestino').innerHTML = '⚠️ ' + pista(); return; }
+        try {
+            const r = await fetch('/api/salud', { cache: 'no-store' });
+            const j = await r.json();
+            if (!j || j.ok !== true) throw new Error('respuesta inesperada');
+        } catch (e) {
+            $('inDestino').innerHTML = '⚠️ ' + pista();
+        }
+    }
+
+    async function revisarSala() {
+        codigo = ($('inSala').value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const destino = $('inDestino');
+        if (!codigo) {
+            destino.innerHTML = 'Sin código de sala: al entrar <strong>creas una sala nueva</strong> y serás el <strong>cantador</strong>. Después envía la invitación a los demás.';
+            return;
+        }
+        if (location.protocol === 'file:') { destino.innerHTML = '⚠️ ' + pista(); return; }
+        try {
+            const r = await fetch('/api/sala?sala=' + encodeURIComponent(codigo), { cache: 'no-store' });
+            const j = await r.json();
+            destino.innerHTML = j && j.existe
+                ? 'La sala <strong>' + codigo + '</strong> está abierta' +
+                  (j.cantador ? ' · canta <strong>' + j.cantador + '</strong>' : '') +
+                  ' · ' + j.conectados + ' conectado(s). Entrarás como jugador.'
+                : 'La sala <strong>' + codigo + '</strong> todavía no existe: al entrar la creas tú y cantas.';
+        } catch (e) { destino.innerHTML = '⚠️ ' + pista(); }
+    }
+
+    function ir(sala) {
+        const alias = $('inAlias').value.trim();
+        if (!alias) { $('inError').textContent = 'Escribe tu alias o nombre'; $('inAlias').focus(); return; }
+        localStorage.setItem('bg_alias', alias);
+        localStorage.setItem('bg_sala', sala);
+        location.href = 'grupo.html?sala=' + encodeURIComponent(sala);
+    }
+
+    $('formEntrada').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const escrita = ($('inSala').value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const sala = escrita || codigo || Math.random().toString(36).slice(2, 6).toUpperCase();
+        ir(sala);
+    });
+
+    $('btnCrear').addEventListener('click', () => {
+        $('inSala').value = '';
+        ir(Math.random().toString(36).slice(2, 6).toUpperCase());
+    });
+
+    $('inSala').addEventListener('input', revisarSala);
+
+    $('inAlias').value = localStorage.getItem('bg_alias') || '';
+    if (codigo) $('inSala').value = codigo;
+    revisarSala();
+    comprobarServidor();
+})();
+</script>
 </body>
 </html>

@@ -951,6 +951,75 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- Fondo de los cartones (se recuerda en este dispositivo) ---
+
+    function pintarFondo(f) {
+        const cuerpo = document.body;
+        cuerpo.classList.remove('fondo-papel', 'fondo-tela', 'fondo-madera');
+        cuerpo.style.removeProperty('--carton-foto');
+        cuerpo.style.setProperty('--carton-opacidad', String(f && f.opacidad !== undefined ? f.opacidad : 0.4));
+        if (!f || !f.tipo || f.tipo === 'ninguno') return;
+        if (f.tipo === 'foto' && f.foto) cuerpo.style.setProperty('--carton-foto', 'url("' + f.foto + '")');
+        else if (f.tipo === 'patron') cuerpo.classList.add('fondo-' + f.patron);
+    }
+
+    function leerFondo() {
+        try { return JSON.parse(localStorage.getItem('ab_fondo') || 'null'); } catch (e) { return null; }
+    }
+
+    function guardarFondo(f) {
+        try { localStorage.setItem('ab_fondo', JSON.stringify(f)); } catch (e) { /* sin espacio */ }
+        pintarFondo(f);
+    }
+
+    (function iniciarFondos() {
+        const botones = document.querySelectorAll('[data-fondo]');
+        const rango = document.getElementById('fondoRango');
+        const entrada = document.getElementById('fondoFoto');
+        const intensidad = () => Number(rango ? rango.value : 40) / 100;
+
+        botones.forEach((b) => b.addEventListener('click', () => {
+            const v = b.dataset.fondo;
+            guardarFondo(v === 'ninguno'
+                ? { tipo: 'ninguno', opacidad: intensidad() }
+                : { tipo: 'patron', patron: v, opacidad: intensidad() });
+        }));
+
+        if (rango) rango.addEventListener('change', () => {
+            const f = leerFondo() || { tipo: 'ninguno' };
+            f.opacidad = intensidad();
+            guardarFondo(f);
+        });
+
+        const botonFoto = document.getElementById('btnFondoFoto');
+        if (botonFoto && entrada) botonFoto.addEventListener('click', () => entrada.click());
+
+        if (entrada) entrada.addEventListener('change', () => {
+            const archivo = entrada.files && entrada.files[0];
+            if (!archivo) return;
+            const lector = new FileReader();
+            lector.onload = () => {
+                const img = new Image();
+                img.onload = () => {
+                    const escala = Math.min(1, 1200 / Math.max(img.width, img.height));
+                    const lienzo = document.createElement('canvas');
+                    lienzo.width = Math.max(1, Math.round(img.width * escala));
+                    lienzo.height = Math.max(1, Math.round(img.height * escala));
+                    lienzo.getContext('2d').drawImage(img, 0, 0, lienzo.width, lienzo.height);
+                    guardarFondo({ tipo: 'foto', foto: lienzo.toDataURL('image/jpeg', 0.75), opacidad: intensidad() });
+                };
+                img.src = lector.result;
+            };
+            lector.readAsDataURL(archivo);
+        });
+
+        const guardado = leerFondo();
+        if (guardado) {
+            if (rango && guardado.opacidad !== undefined) rango.value = Math.round(guardado.opacidad * 100);
+            pintarFondo(guardado);
+        }
+    })();
+
     // Inicializar el juego al cargar
     initGame();
 });

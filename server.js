@@ -1,10 +1,12 @@
 /**
- * Bombo Bingo en Grupo — Servidor sin dependencias (Node >= 18)
+ * AplicaBingo — Servidor sin dependencias (Node >= 18)
  * Uso:  node server.js [puerto]
- * Abre: http://localhost:3000/grupo.html
+ * Abre: http://localhost:3000/            (entrada: alias + sala)
+ *       http://localhost:3000/grupo.html?sala=XXXX
  *
- * El servidor es la AUTORIDAD: genera los cartones (únicos), canta,
- * valida las marcas y comprueba línea / apagón. Nadie puede hacer trampa.
+ * El servidor es la AUTORIDAD: el primero que entra crea la sala y canta;
+ * si el cantador sale, el bombo pasa al siguiente. Genera los cartones
+ * (únicos), canta, valida las marcas y coteja línea / apagón.
  */
 'use strict';
 
@@ -72,6 +74,12 @@ function getSala(codigo) {
             timer: null,
             tipoLinea: 'fila',           // 'fila' | 'cualquiera'
             cantarAutomatico: false,     // el sistema canta al completar (opcional)
+            iniciada: false,             // el cantador ya empezó a cantar
+            exigirAbono: false,          // exige abono confirmado para cantar premio
+            aviso: null,                 // {pid, hora}: "ahora cantas tú" (invita a los demás)
+            fondo: null,                 // {tipo, patron, opacidad, version} para los cartones
+            fondoUrl: null,              // data URL de la foto de fondo (no se emite por SSE)
+            cotejos: [],                 // jugadas cantadas con su evidencia congelada
             config: {
                 abono: 2,
                 moneda: 'S/',
@@ -135,12 +143,63 @@ function tieneLinea(sala, c) {
 /** Apagón: las 25 casillas del cartón marcadas */
 function tieneApagon(c) { return new Set(c.marcadas).size >= 25; }
 
+const PATRONES_COLUMNA = [0, 1, 2, 3, 4].map(c => [0, 1, 2, 3, 4].map(r => r + '-' + c));
+const PATRONES_DIAGONAL = [['0-0', '1-1', '2-2', '3-3', '4-4'], ['0-4', '1-3', '2-2', '3-1', '4-0']];
+
+/**
+ * Cotejo de un cartón: qué filas, columnas y diagonales están completas y
+ * cuántos aciertos tiene. Se usa igual para la partida en vivo y para la
+ * evidencia congelada de un premio cantado.
+ */
+function analizar(rows, marcadas, salidos, tipoLinea) {
+    const set = new Set(marcadas);
+    const sal = new Set(salidos);
+    let aciertos = 0, validas = 0, total = 0;
+    for (let r = 0; r < 5; r++) {
+        for (let k = 0; k < 5; k++) {
+            const v = rows[r][k];
+            if (v === 'LIBRE') continue;
+            total++;
+            const key = r + '-' + k;
+            if (set.has(key)) { aciertos++; if (sal.has(v)) validas++; }
+        }
+    }
+    const hecha = (p) => p.every(k => set.has(k));
+    const filas = PATRONES_FILA.map(hecha);
+    const columnas = PATRONES_COLUMNA.map(hecha);
+    const diagonales = PATRONES_DIAGONAL.map(hecha);
+    const hayLinea = tipoLinea === 'fila'
+        ? filas.some(Boolean)
+        : (filas.some(Boolean) || columnas.some(Boolean) || diagonales.some(Boolean));
+    return { aciertos, validas, total, filas, columnas, diagonales, linea: hayLinea, apagon: aciertos >= total };
+}
+
+/** Datos de un cartón para el cliente, con su cotejo ya calculado */
+function infoCarton(sala, c) {
+    const a = analizar(c.rows, c.marcadas, sala.salidos, sala.tipoLinea);
+    return {
+        id: c.id, serie: c.serie, rows: c.rows, marcadas: c.marcadas, pagado: c.pagado,
+        aciertos: a.aciertos, validas: a.validas, total: a.total,
+        filas: a.filas, columnas: a.columnas, diagonales: a.diagonales,
+        linea: a.linea, apagon: a.apagon
+    };
+}
+
 /* --------------------------- Jugadores --------------------------- */
 
 function buscarJugador(sala, pid, alias) {
     let j = sala.jugadores.find(x => x.pid === pid);
     if (!j && alias) j = sala.jugadores.find(x => x.alias.toLowerCase() === String(alias).toLowerCase().trim());
     return j || null;
+}
+
+/** Pasa el bombo a un jugador y deja el aviso para que invite a los demás */
+function tomarBombo(sala, j, texto) {
+    const previo = sala.jugadores.find(x => x.rol === 'cantador' && x.pid !== j.pid);
+    if (previo) previo.rol = 'jugador';
+    j.rol = 'cantador';
+    sala.aviso = { pid: j.pid, hora: ahora() };
+    mensaje(sala, '🎤 ' + j.alias + ' ' + texto, 'aviso');
 }
 
 function entrar(codigo, pid, alias) {
@@ -160,6 +219,7 @@ function entrar(codigo, pid, alias) {
             auto: false,
             autoCanto: true,
             visto: Date.now(),
+            entrada: Date.now(),
             desconexion: null
         };
         sala.jugadores.push(j);
@@ -170,10 +230,13 @@ function entrar(codigo, pid, alias) {
         j.visto = Date.now();
         if (j.desconexion) { clearTimeout(j.desconexion); j.desconexion = null; }
     }
-    // El primero en entrar canta; si el cantador se va, pasa el bombo.
-    if (!sala.jugadores.some(x => x.rol === 'cantador')) {
-        j.rol = 'cantador';
-        mensaje(sala, '🎤 ' + j.alias + ' es el cantador (controla el bombo)');
+    // El primero que entra canta. Si el cantador ya no está (salió o se
+    // desconectó), el bombo pasa al siguiente que entra.
+    const cantador = sala.jugadores.find(x => x.rol === 'cantador');
+    if (!cantador) {
+        tomarBombo(sala, j, 'es el cantador (controla el bombo y canta)');
+    } else if (cantador.pid !== j.pid && !cantador.conectado) {
+        tomarBombo(sala, j, 'toma el bombo porque ' + cantador.alias + ' salió de la sala');
     }
     if (!j.rol) j.rol = 'jugador';
     return { sala, jugador: j };
@@ -187,18 +250,21 @@ function mensaje(sala, texto, tipo) {
 function reasignarCantador(sala) {
     const actual = sala.jugadores.find(j => j.rol === 'cantador');
     if (actual && actual.conectado) return;
-    const siguiente = sala.jugadores.find(j => j.conectado) ;
-    if (siguiente) {
-        if (actual) actual.rol = 'jugador';
-        siguiente.rol = 'cantador';
-        mensaje(sala, '🎤 El bombo pasa a ' + siguiente.alias, 'aviso');
-    }
+    // "El siguiente": el que lleva más tiempo conectado en la sala.
+    const siguiente = sala.jugadores
+        .filter(j => j.conectado)
+        .sort((a, b) => (a.entrada || 0) - (b.entrada || 0))[0];
+    if (siguiente) tomarBombo(sala, siguiente, 'toma el bombo');
 }
 
 /* --------------------------- Sorteo --------------------------- */
 
 function cantar(sala) {
     if (!sala.disponibles.length) { detenerAuto(sala); return null; }
+    if (!sala.iniciada) {
+        sala.iniciada = true;
+        mensaje(sala, '▶ ¡Empieza el canto! Ya pueden marcar sus cartones', 'aviso');
+    }
     const i = Math.floor(Math.random() * sala.disponibles.length);
     const num = sala.disponibles.splice(i, 1)[0];
     sala.salidos.push(num);
@@ -236,10 +302,45 @@ function revisarCantosAutomaticos(sala) {
     });
 }
 
+/** Congela la evidencia de una jugada para que el cantador pueda cotejarla */
+function registrarCotejo(sala, d) {
+    const a = analizar(d.c.rows, d.c.marcadas, sala.salidos, sala.tipoLinea);
+    const reg = {
+        id: uid(6),
+        premio: d.premio === 'apagon' ? 'apagon' : 'linea',
+        alias: d.jugador.alias,
+        pid: d.jugador.pid,
+        cartonId: d.c.id,
+        serie: d.c.serie,
+        estado: d.estado,               // 'valido' | 'rechazado'
+        motivo: d.motivo || '',
+        auto: !!d.esAuto,
+        hora: ahora(),
+        confirmado: false,
+        anulado: false,
+        evidencia: {
+            rows: d.c.rows.map(r => r.slice()),
+            marcadas: d.c.marcadas.slice(),
+            salidos: sala.salidos.slice(),
+            letras: sala.config.letras,
+            tipoLinea: sala.tipoLinea,
+            analisis: a
+        }
+    };
+    sala.cotejos.unshift(reg);
+    if (sala.cotejos.length > 20) sala.cotejos.pop();
+    return reg;
+}
+
 function adjudicar(sala, premio, jugador, c, esAuto) {
-    const reg = { alias: jugador.alias, serie: c.serie, id: c.id, auto: !!esAuto, hora: ahora() };
+    const reg = {
+        alias: jugador.alias, serie: c.serie, id: c.id, pid: jugador.pid,
+        auto: !!esAuto, hora: ahora(), estado: 'pendiente'
+    };
     if (premio === 'linea') sala.premioLinea = reg; else sala.premioApagon = reg;
-    mensaje(sala, (premio === 'linea' ? '🏆 ¡LÍNEA!' : '🌟 ¡APAGÓN!') + ' ' + jugador.alias + ' — cartón ' + c.serie, 'premio');
+    registrarCotejo(sala, { premio, jugador, c, estado: 'valido', esAuto });
+    mensaje(sala, (premio === 'linea' ? '🏆 ¡LÍNEA!' : '🌟 ¡APAGÓN!') + ' ' + jugador.alias +
+        ' — cartón ' + c.serie + ' · el cantador debe cotejarlo', 'premio');
 }
 
 function abrirRonda(sala) {
@@ -249,9 +350,12 @@ function abrirRonda(sala) {
     sala.actual = null;
     sala.premioLinea = null;
     sala.premioApagon = null;
+    sala.cotejos = [];
+    sala.iniciada = false;
+    sala.aviso = null;
     sala.cartones.forEach(c => { c.marcadas = ['2-2']; });
     detenerAuto(sala);
-    mensaje(sala, '🔄 Nueva ronda abierta', 'aviso');
+    mensaje(sala, '🔄 Nueva ronda: abonen sus cartones y esperen el canto', 'aviso');
 }
 
 function iniciarAuto(sala) {
@@ -276,10 +380,8 @@ function estadoPara(sala, j) {
     const pozo = recaudado;
     const pctLinea = Math.max(0, Math.min(100, sala.config.premioLineaPct));
 
-    const misCartones = cartonesDe(sala, j.pid).map(c => ({
-        id: c.id, serie: c.serie, rows: c.rows, marcadas: c.marcadas, pagado: c.pagado,
-        linea: tieneLinea(sala, c), apagon: tieneApagon(c)
-    }));
+    const misCartones = cartonesDe(sala, j.pid).map(c => infoCarton(sala, c));
+    const soyCantador = j.rol === 'cantador';
 
     const jugadores = sala.jugadores.map(x => {
         const mios = cartonesDe(sala, x.pid);
@@ -289,7 +391,14 @@ function estadoPara(sala, j) {
             rol: x.rol,
             conectado: x.conectado,
             cartones: mios.length,
-            pedidos: mios.map(c => ({ id: c.id, serie: c.serie, pagado: c.pagado, linea: tieneLinea(sala, c), apagon: tieneApagon(c) })),
+            pedidos: mios.map(c => {
+                const a = analizar(c.rows, c.marcadas, sala.salidos, sala.tipoLinea);
+                return {
+                    id: c.id, serie: c.serie, pagado: c.pagado,
+                    linea: a.linea, apagon: a.apagon,
+                    aciertos: a.aciertos, total: a.total, filas: a.filas
+                };
+            }),
             debe: mios.filter(c => c.pagado !== 'pagado').length * sala.config.abono,
             auto: x.auto
         };
@@ -300,6 +409,16 @@ function estadoPara(sala, j) {
         tipo: 'estado',
         sala: sala.codigo,
         revision: ++sala.revision,
+        iniciada: !!sala.iniciada,
+        exigirAbono: !!sala.exigirAbono,
+        aviso: sala.aviso,
+        fondo: {
+            tipo: sala.fondo ? sala.fondo.tipo : 'ninguno',
+            patron: sala.fondo ? sala.fondo.patron : '',
+            opacidad: sala.fondo ? sala.fondo.opacidad : 0.35,
+            version: sala.fondo ? sala.fondo.version : 0
+        },
+        cotejos: soyCantador ? sala.cotejos.slice(0, 8) : [],
         config: sala.config,
         tipoLinea: sala.tipoLinea,
         cantarAutomatico: sala.cantarAutomatico,
@@ -384,6 +503,7 @@ function accion(payload) {
             if (c.letras && LETRAS[c.letras]) sala.config.letras = c.letras;
             if (payload.tipoLinea) sala.tipoLinea = payload.tipoLinea === 'cualquiera' ? 'cualquiera' : 'fila';
             if (payload.cantarAutomatico !== undefined) sala.cantarAutomatico = !!payload.cantarAutomatico;
+            if (payload.exigirAbono !== undefined) sala.exigirAbono = !!payload.exigirAbono;
             break;
         }
 
@@ -415,7 +535,8 @@ function accion(payload) {
             if (!propio && !esCantador()) return { error: 'Solo el cantador confirma pagos de otros' };
             const nuevo = payload.estado;
             if (nuevo === 'pagado') {
-                if (!esCantador() && c.pagado === 'pagado') return { error: 'Ya estaba pagado' };
+                // El jugador solo declara; dar el abono por bueno es cosa del cantador.
+                if (!esCantador()) return { error: 'Solo el cantador confirma el abono (tú puedes declararlo)' };
                 c.pagado = 'pagado';
                 mensaje(sala, sala.config.moneda + ' ' + sala.config.abono + ' — ' + sala.config.moneda + ' confirmado para el cartón ' + c.serie, 'pago');
             } else if (nuevo === 'declarado') {
@@ -452,6 +573,88 @@ function accion(payload) {
             break;
         }
 
+        case 'iniciar': {
+            if (!esCantador()) return { error: 'Solo el cantador inicia la ronda' };
+            sala.iniciada = true;
+            mensaje(sala, '▶ ' + j.alias + ' inició la ronda. ¡A cantar!', 'aviso');
+            break;
+        }
+
+        case 'fondo': {
+            if (!esCantador()) return { error: 'Solo el cantador cambia el fondo de los cartones' };
+            const f = payload.fondo || {};
+            const tipo = f.tipo === 'foto' ? 'foto' : (f.tipo === 'patron' ? 'patron' : 'ninguno');
+            let opacidad = Number(f.opacidad);
+            if (isNaN(opacidad)) opacidad = 0.35;
+            opacidad = Math.max(0.05, Math.min(0.95, opacidad));
+            if (tipo === 'foto') {
+                const foto = String(payload.foto || '');
+                if (!/^data:image\/(png|jpe?g|webp);base64,/.test(foto)) return { error: 'La foto debe ser PNG, JPG o WEBP' };
+                if (foto.length > 3.5e6) return { error: 'La foto es muy pesada. Prueba con una más liviana.' };
+                sala.fondoUrl = foto;
+            } else if (tipo === 'ninguno') {
+                sala.fondoUrl = null;
+            }
+            sala.fondo = {
+                tipo,
+                patron: tipo === 'patron' ? (['papel', 'tela', 'madera'].indexOf(f.patron) >= 0 ? f.patron : 'papel') : '',
+                opacidad,
+                version: (sala.fondo ? sala.fondo.version : 0) + (tipo === 'foto' ? 1 : 0)
+            };
+            mensaje(sala, tipo === 'ninguno' ? '🎨 El cantador quitó el fondo de los cartones'
+                : '🎨 El cantador cambió el fondo de los cartones', 'aviso');
+            break;
+        }
+
+        case 'cotejo': {
+            if (!esCantador()) return { error: 'Solo el cantador coteja los premios' };
+            const co = sala.cotejos.find(x => x.id === payload.cotejoId);
+            if (!co) return { error: 'Ese cotejo ya no está disponible' };
+            if (co.estado !== 'valido') return { error: 'Ese canto fue rechazado automáticamente' };
+            const que = co.premio === 'linea' ? 'premio de línea' : 'apagón';
+            if (payload.decision === 'anular') {
+                co.anulado = true;
+                co.confirmado = false;
+                const reg = co.premio === 'linea' ? sala.premioLinea : sala.premioApagon;
+                if (reg && reg.id === co.cartonId) {
+                    if (co.premio === 'linea') sala.premioLinea = null; else sala.premioApagon = null;
+                }
+                mensaje(sala, '✘ El cantador anuló el ' + que + ' de ' + co.alias, 'aviso');
+            } else {
+                co.confirmado = true;
+                co.anulado = false;
+                const reg = co.premio === 'linea' ? sala.premioLinea : sala.premioApagon;
+                if (reg && reg.id === co.cartonId) reg.estado = 'oficial';
+                mensaje(sala, '✔ El cantador dio por bueno el ' + que + ' de ' + co.alias, 'premio');
+            }
+            break;
+        }
+
+        case 'verCarton': {
+            const c = carton(sala, payload.cartonId);
+            if (!c) return { error: 'Cartón no encontrado' };
+            if (c.dueno !== j.pid && !esCantador()) return { error: 'Ese cartón no es tuyo' };
+            const dueno = sala.jugadores.find(x => x.pid === c.dueno);
+            return {
+                ok: true,
+                carton: Object.assign(infoCarton(sala, c), {
+                    alias: dueno ? dueno.alias : '—',
+                    salidos: sala.salidos.slice(),
+                    letras: sala.config.letras,
+                    tipoLinea: sala.tipoLinea
+                })
+            };
+        }
+
+        case 'salir': {
+            detenerAuto(sala);
+            sala.cartones = sala.cartones.filter(c => c.dueno !== j.pid);
+            sala.jugadores = sala.jugadores.filter(x => x.pid !== j.pid);
+            mensaje(sala, j.alias + ' salió de la sala', 'aviso');
+            reasignarCantador(sala);
+            break;
+        }
+
         case 'marcar': {
             const c = carton(sala, payload.cartonId);
             if (!c || c.dueno !== j.pid) return { error: 'Ese cartón no es tuyo' };
@@ -476,7 +679,26 @@ function accion(payload) {
                 ? cartonesDe(sala, j.pid).filter(c => c.id === payload.cartonId)
                 : cartonesDe(sala, j.pid);
             const valido = candidatos.find(c => premio === 'linea' ? tieneLinea(sala, c) : tieneApagon(c));
-            if (!valido) return { error: premio === 'linea' ? 'Aún no completas ninguna línea' : 'Aún no llenas el cartón completo' };
+            if (!valido) {
+                // El intento también se coteja: el cantador ve el cartón y por qué no gana
+                const motivo = premio === 'linea' ? 'Aún no completas ninguna línea' : 'Aún no llenas el cartón completo';
+                const intento = candidatos.slice().sort((a, b) =>
+                    analizar(b.rows, b.marcadas, sala.salidos, sala.tipoLinea).aciertos -
+                    analizar(a.rows, a.marcadas, sala.salidos, sala.tipoLinea).aciertos)[0];
+                if (intento) {
+                    const a = analizar(intento.rows, intento.marcadas, sala.salidos, sala.tipoLinea);
+                    registrarCotejo(sala, {
+                        premio, jugador: j, c: intento, estado: 'rechazado',
+                        motivo: motivo + ' (' + a.aciertos + ' de ' + a.total + ' casillas)'
+                    });
+                    mensaje(sala, '⚠️ ' + j.alias + ' cantó ' + (premio === 'linea' ? 'línea' : 'apagón') + ' sin completarlo', 'aviso');
+                    emitir(sala);
+                }
+                return { error: motivo };
+            }
+            if (sala.exigirAbono && valido.pagado !== 'pagado') {
+                return { error: 'El cartón ' + valido.serie + ' no tiene el abono confirmado' };
+            }
             adjudicar(sala, premio, j, valido, false);
             break;
         }
@@ -491,9 +713,7 @@ function accion(payload) {
             if (!esCantador()) return { error: 'Solo el cantador puede pasar el bombo' };
             const destino = sala.jugadores.find(x => x.pid === payload.pidDestino);
             if (!destino) return { error: 'Jugador no encontrado' };
-            j.rol = 'jugador';
-            destino.rol = 'cantador';
-            mensaje(sala, '🎤 El bombo pasa a ' + destino.alias, 'aviso');
+            tomarBombo(sala, destino, 'recibe el bombo de ' + j.alias);
             break;
         }
 
@@ -503,6 +723,7 @@ function accion(payload) {
             detenerAuto(sala);
             sala.cartones = sala.cartones.filter(c => c.dueno !== payload.pidDestino);
             sala.jugadores = sala.jugadores.filter(x => x.pid !== payload.pidDestino);
+            reasignarCantador(sala);
             break;
         }
 
@@ -518,13 +739,13 @@ function accion(payload) {
 function leerJSON(req) {
     return new Promise((resolve) => {
         let data = '';
-        req.on('data', c => { data += c; if (data.length > 1e6) req.destroy(); });
+        req.on('data', c => { data += c; if (data.length > 4e6) req.destroy(); });
         req.on('end', () => { try { resolve(JSON.parse(data || '{}')); } catch (e) { resolve({}); } });
     });
 }
 
 function estatico(req, res, url) {
-    const rel = decodeURIComponent(url.pathname === '/' ? '/grupo.html' : url.pathname).replace(/^\/+/, '');
+    const rel = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname).replace(/^\/+/, '');
     const file = path.join(ROOT, rel);
     if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end('Prohibido'); }
     fs.readFile(file, (err, buf) => {
@@ -561,7 +782,7 @@ const servidor = http.createServer(async (req, res) => {
             const jug = sala.jugadores.find(x => x.pid === pid);
             if (jug) {
                 jug.conectado = false;
-                jug.desconexion = setTimeout(() => { reasignarCantador(sala); emitir(sala); }, 15000);
+                jug.desconexion = setTimeout(() => { reasignarCantador(sala); emitir(sala); }, 12000);
                 mensaje(sala, jug.alias + ' se desconectó', 'aviso');
                 emitir(sala);
             }
@@ -575,6 +796,35 @@ const servidor = http.createServer(async (req, res) => {
         try { out = accion(body); } catch (e) { out = { error: 'Error interno: ' + e.message }; }
         res.writeHead(out.error ? 400 : 200, { 'Content-Type': 'application/json; charset=utf-8' });
         return res.end(JSON.stringify(out));
+    }
+
+    if (p === '/api/sala') {
+        const codigo = (url.searchParams.get('sala') || '').toUpperCase().trim();
+        const s = salas.get(codigo);
+        const cant = s ? s.jugadores.find(x => x.rol === 'cantador') : null;
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(JSON.stringify({
+            ok: true,
+            codigo,
+            existe: !!s,
+            conectados: s ? s.jugadores.filter(x => x.conectado).length : 0,
+            cantador: cant ? cant.alias : '',
+            iniciada: s ? !!s.iniciada : false
+        }));
+    }
+
+    if (p === '/api/fondo') {
+        const codigo = (url.searchParams.get('sala') || '').toUpperCase().trim();
+        const s = salas.get(codigo);
+        const m = s && s.fondoUrl ? /^data:([^;]+);base64,(.*)$/.exec(s.fondoUrl) : null;
+        if (!m) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('sin fondo'); }
+        const buf = Buffer.from(m[2], 'base64');
+        res.writeHead(200, {
+            'Content-Type': m[1],
+            'Content-Length': buf.length,
+            'Cache-Control': 'public, max-age=31536000, immutable'
+        });
+        return res.end(buf);
     }
 
     if (p === '/api/salud') {
@@ -591,9 +841,10 @@ servidor.listen(PUERTO, '0.0.0.0', () => {
     Object.keys(ifs).forEach(k => (ifs[k] || []).forEach(i => {
         if (i.family === 'IPv4' && !i.internal) ips.push(i.address);
     }));
-    console.log('\n  🎱  Bingo en Grupo listo');
-    console.log('  Cantador (PC):      http://localhost:' + PUERTO + '/grupo.html');
-    ips.forEach(ip => console.log('  Jugadores (móvil):  http://' + ip + ':' + PUERTO + '/grupo.html'));
-    console.log('  Bingo individual:   http://localhost:' + PUERTO + '/index.html');
+    console.log('\n  🎱  AplicaBingo listo');
+    console.log('  Entrada para todos: http://localhost:' + PUERTO + '/');
+    ips.forEach(ip => console.log('  Desde el móvil:     http://' + ip + ':' + PUERTO + '/'));
+    console.log('  Sala directa:       http://localhost:' + PUERTO + '/grupo.html');
+    console.log('  Modo local (1 PC):  http://localhost:' + PUERTO + '/solo.html');
     console.log('  (Ctrl+C para detener)\n');
 });

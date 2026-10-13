@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Bingo en Grupo — Sala</title>
+    <title>AplicaBingo — Sala</title>
     <link rel="stylesheet" href="grupo.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,14 +14,21 @@
 <!-- ============ 1. INGRESO (alias obligatorio) ============ -->
 <div class="ingreso-wrap" id="pantallaIngreso">
     <form class="ingreso-card" id="formIngreso">
-        <h1>Bingo en Grupo</h1>
+        <div class="marca">
+            <span class="marca-bola">🎱</span>
+            <h1>AplicaBingo</h1>
+        </div>
         <p class="sub">
-            Escribe tu <strong>alias</strong> para entrar. El <strong>primero que entra canta</strong>
-            (controla el bombo); los demás juegan con sus cartones.
+            Escribe tu <strong>alias</strong> para entrar. El <strong>primero que entra crea la sala y canta</strong>
+            (controla el bombo); los demás reciben sus cartones, abonan lo que les toca y esperan el canto.
         </p>
         <div>
-            <label for="inAlias">Alias o nombre</label>
+            <label for="inAlias">Tu alias o nombre</label>
             <input class="g-input" id="inAlias" maxlength="16" placeholder="Ej. Ana" autocomplete="off" required>
+        </div>
+        <div>
+            <label for="inSala">Código de sala (solo si te lo pasaron)</label>
+            <input class="g-input" id="inSala" maxlength="8" placeholder="Déjalo vacío para crear una sala" autocomplete="off">
         </div>
         <p class="g-destino" id="inDestino">…</p>
         <div class="g-row">
@@ -34,11 +41,15 @@
 <!-- ============ 2. SALA ============ -->
 <div id="pantallaSala" class="g-hidden" style="display:flex;flex-direction:column;flex:1">
     <header class="g-header">
+        <div class="g-marca"><span class="g-bola">🎱</span> AplicaBingo</div>
         <div class="g-sala">Sala <strong id="hSala">----</strong></div>
         <div class="g-yo"><span class="g-online" id="hOnline"></span> <span id="hAlias">—</span></div>
         <span class="g-chip-rol" id="hRol">JUGADOR</span>
         <span class="g-spacer"></span>
+        <button class="g-btn mini" id="btnInvitar" type="button">📨 Invitar</button>
+        <button class="g-btn ghost mini" id="btnFondo" type="button">🎨 Fondo</button>
         <button class="g-btn ghost mini" id="btnCopiar" type="button">Copiar enlace</button>
+        <button class="g-btn peligro mini" id="btnSalir" type="button">Salir</button>
         <button class="g-btn dark mini" id="btnRecargar" type="button">↻</button>
     </header>
 
@@ -63,9 +74,24 @@
                 <p class="g-info" id="infoSorteo" style="margin-top:.5rem;font-size:.78rem;color:#6b4a4a"></p>
             </div>
 
+            <div class="g-panel g-espera" id="panelInicio">
+                <h3>Ronda y jugadores que esperan</h3>
+                <p class="g-hint" id="txtInicio">—</p>
+                <div class="g-botones">
+                    <button class="g-btn" id="btnIniciar" type="button">▶ Iniciar ronda</button>
+                    <button class="g-btn ghost" id="btnInvitar2" type="button">📨 Enviar invitación</button>
+                </div>
+            </div>
+
+            <div class="g-panel" id="panelCotejoWrap">
+                <h3>Cotejo de premios — verifica si ganó</h3>
+                <p class="g-hint" id="txtCotejo">Aquí aparecen los cantos de línea y apagón con el cartón congelado, para que verifiques si el premio es bueno.</p>
+                <div class="g-cotejos" id="listaCotejos"></div>
+            </div>
+
             <div class="g-grid-2">
                 <div class="g-panel">
-                    <h3>Jugadores y abonos</h3>
+                    <h3>Jugadores, cartones y abonos</h3>
                     <div class="g-dinero" id="kpis"></div>
                     <table class="g-tabla">
                         <thead>
@@ -115,6 +141,10 @@
                             <input type="checkbox" id="cfCantoAuto">
                             Cantar línea/apagón automáticamente al completarse
                         </label>
+                        <label class="g-check" style="margin-top:.4rem">
+                            <input type="checkbox" id="cfExigirAbono">
+                            Exigir abono confirmado para validar un premio
+                        </label>
                     </div>
 
                     <div class="g-panel">
@@ -139,6 +169,11 @@
                     <button class="g-btn ghost mini" id="btnPedir3" type="button">＋3</button>
                 </div>
 
+                <div class="g-espera g-hidden" id="esperaJugador">
+                    <strong id="esperaTitulo">⏳ Esperando al cantador</strong>
+                    <span id="esperaTexto"></span>
+                </div>
+
                 <div class="g-cartones" id="cartonesJugador"></div>
 
                 <div class="g-barra-abajo">
@@ -151,12 +186,23 @@
                         <input type="checkbox" id="jAutoCanto"> Cantar solo al completar
                     </label>
                     <span class="g-spacer"></span>
+                    <button class="g-btn mini dark" id="btnMiCotejo" type="button">🔍 Mi cotejo</button>
                     <button class="g-btn" id="btnLinea" type="button">🏆 ¡LÍNEA!</button>
                     <button class="g-btn peligro" id="btnApagon" type="button">🌟 ¡APAGÓN!</button>
                 </div>
             </div>
         </section>
     </main>
+</div>
+
+<div class="g-modal g-hidden" id="modal">
+    <div class="g-modal-card">
+        <div class="g-modal-head">
+            <h3 id="modalTitulo">—</h3>
+            <button class="g-x" id="modalCerrar" type="button">✕</button>
+        </div>
+        <div class="g-modal-body" id="modalCuerpo"></div>
+    </div>
 </div>
 
 <div class="g-toast g-hidden" id="toast"></div>

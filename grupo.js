@@ -1,6 +1,6 @@
 /**
- * Bingo en Grupo — Cliente de sala (cantador / jugadores)
- * El servidor (server.js) es la autoridad: cartones, cantadas, marcas y premios.
+ * AplicaBingo — Cliente de sala (cantador / jugadores / cotejo de premios)
+ * El servidor (server.js) es la autoridad: sala, cantador, cartones, marcas y premios.
  */
 (() => {
     'use strict';
@@ -21,6 +21,9 @@
     let vistoNumero = null;
     let vistoLinea = null;
     let vistoApagon = null;
+    let vistoAviso = null;
+    let rolPrevio = null;
+    let fondoLocal = leerFondoLocal();
     let toastTimer = null;
 
     /* ------------------------- utilidades ------------------------- */
@@ -45,6 +48,67 @@
     }
 
     const dinero = (n, moneda) => (moneda || 'S/') + ' ' + (Number(n) || 0).toFixed(2);
+
+    const urlSala = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'grupo.html?sala=' + codigo;
+
+    /* ---------- Fondo de los cartones: foto o patrón, propio o de la sala ---------- */
+
+    function leerFondoLocal() {
+        try {
+            const f = JSON.parse(localStorage.getItem('bg_fondo') || 'null');
+            return (f && typeof f === 'object') ? f : null;
+        } catch (e) { return null; }
+    }
+
+    function guardarFondoLocal(f) {
+        fondoLocal = f;
+        try {
+            if (f) localStorage.setItem('bg_fondo', JSON.stringify(f));
+            else localStorage.removeItem('bg_fondo');
+        } catch (e) { /* sin espacio: se aplica solo en esta pantalla */ }
+        aplicarFondo();
+    }
+
+    /** Reduce la foto en el navegador para no saturar la red de la sala */
+    function prepararFoto(archivo, maxLado, listo, fallo) {
+        const lector = new FileReader();
+        lector.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                const escala = Math.min(1, maxLado / Math.max(img.width, img.height));
+                const lienzo = document.createElement('canvas');
+                lienzo.width = Math.max(1, Math.round(img.width * escala));
+                lienzo.height = Math.max(1, Math.round(img.height * escala));
+                lienzo.getContext('2d').drawImage(img, 0, 0, lienzo.width, lienzo.height);
+                listo(lienzo.toDataURL('image/jpeg', 0.72));
+            };
+            img.onerror = () => fallo('No se pudo leer esa imagen');
+            img.src = lector.result;
+        };
+        lector.onerror = () => fallo('No se pudo leer ese archivo');
+        lector.readAsDataURL(archivo);
+    }
+
+    /** El fondo propio gana sobre el de la sala; solo cambia lo que se ve aquí */
+    function aplicarFondo() {
+        const deSala = (estado && estado.fondo && estado.fondo.tipo !== 'ninguno') ? estado.fondo : null;
+        const mio = (fondoLocal && fondoLocal.tipo && fondoLocal.tipo !== 'ninguno') ? fondoLocal : null;
+        const f = mio || deSala;
+        const cuerpo = document.body;
+        cuerpo.classList.remove('fondo-papel', 'fondo-tela', 'fondo-madera');
+        cuerpo.style.removeProperty('--carton-foto');
+        cuerpo.style.removeProperty('--carton-opacidad');
+        if (!f) return;
+        let op = f.opacidad;
+        if (op === undefined || op === null) op = deSala ? deSala.opacidad : 0.35;
+        cuerpo.style.setProperty('--carton-opacidad', String(op));
+        if (f.tipo === 'foto') {
+            const url = f.foto ? f.foto : (location.origin + '/api/fondo?sala=' + codigo + '&v=' + (deSala ? deSala.version : 0));
+            cuerpo.style.setProperty('--carton-foto', 'url("' + url + '")');
+        } else if (f.tipo === 'patron') {
+            cuerpo.classList.add('fondo-' + (f.patron || 'papel'));
+        }
+    }
 
     function toast(texto, malo) {
         const t = $('toast');
@@ -140,21 +204,43 @@
         e.preventDefault();
         const alias = $('inAlias').value.trim();
         if (!alias) { $('inError').textContent = 'Escribe tu alias o nombre'; return; }
-        // Sin enlace de sala, el primero en entrar crea la suya y canta.
+        const escrita = ($('inSala').value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (escrita) codigo = escrita;
+        // Sin código de sala, el primero en entrar crea la suya y canta.
         if (!codigo) codigo = Math.random().toString(36).slice(2, 6).toUpperCase();
         $('inError').textContent = '';
         entrar(alias, codigo);
+    });
+
+    $('inSala').addEventListener('input', () => {
+        codigo = ($('inSala').value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        actualizarDestino();
+        revisarSala();
     });
 
     function actualizarDestino() {
         const el = $('inDestino');
         if (!el) return;
         if (codigo) {
-            el.innerHTML = 'Entrarás a la sala <strong>' + codigo + '</strong>. El primero que entra canta; los demás juegan con sus cartones.';
+            el.innerHTML = 'Entrarás a la sala <strong>' + codigo + '</strong>. El primero que entra canta y los demás esperan su canto.';
         } else {
-            el.innerHTML = 'Abriste el juego sin enlace de sala: al entrar <strong>crearás una sala nueva</strong> y serás el <strong>cantador</strong>. ' +
-                'Después comparte el enlace con los jugadores.';
+            el.innerHTML = 'Sin código de sala: al entrar <strong>creas una sala nueva</strong> y serás el <strong>cantador</strong>. ' +
+                'Después envía la invitación a los demás.';
         }
+    }
+
+    /** Muestra si la sala escrita ya existe y quién canta en ella */
+    async function revisarSala() {
+        const el = $('inDestino');
+        if (!el || !codigo || location.protocol === 'file:') return;
+        try {
+            const r = await fetch('/api/sala?sala=' + encodeURIComponent(codigo), { cache: 'no-store' });
+            const j = await r.json();
+            if (!j || !j.existe) { actualizarDestino(); return; }
+            el.innerHTML = 'La sala <strong>' + codigo + '</strong> ya está abierta' +
+                (j.cantador ? ' · canta <strong>' + esc(j.cantador) + '</strong>' : '') +
+                ' · ' + j.conectados + ' conectado(s). Entrarás como jugador.';
+        } catch (e) { /* sin servidor: se avisa abajo */ }
     }
 
     /* --------------------------- conexión --------------------------- */
@@ -190,7 +276,20 @@
         $('hOnline').classList.toggle('off', !estado.yo.conectado);
         $('vistaCantador').classList.toggle('g-hidden', !cant);
         $('vistaJugador').classList.toggle('g-hidden', cant);
+        document.body.classList.toggle('soy-cantador', cant);
 
+        // Si el bombo acaba de pasar a tus manos: avisar y ofrecer la invitación
+        if (estado.aviso && estado.aviso.pid === estado.yo.pid && estado.aviso.hora !== vistoAviso) {
+            vistoAviso = estado.aviso.hora;
+            if (rolPrevio === 'jugador') {
+                toast('🎤 Ahora cantas tú. Envía la invitación a los demás.');
+                hablar('Ahora cantas tú. Envía la invitación.');
+                abrirModalInvitacion(true);
+            }
+        }
+        rolPrevio = estado.yo.rol;
+
+        aplicarFondo();
         avisarPremios();
         if (cant) renderCantador(); else renderJugador();
     }
@@ -199,8 +298,16 @@
         const l = estado.premioLinea, a = estado.premioApagon;
         const claveL = l ? l.serie + l.hora : null;
         const claveA = a ? a.serie + a.hora : null;
-        if (claveL && claveL !== vistoLinea) { vistoLinea = claveL; toast('🏆 ¡LÍNEA! ' + l.alias + ' · cartón ' + l.serie); hablar('Línea para ' + l.alias); }
-        if (claveA && claveA !== vistoApagon) { vistoApagon = claveA; toast('🌟 ¡APAGÓN! ' + a.alias + ' · cartón ' + a.serie); hablar('Apagón para ' + a.alias); }
+        if (claveL && claveL !== vistoLinea) {
+            vistoLinea = claveL;
+            toast('🏆 ¡LÍNEA! ' + l.alias + ' · cartón ' + l.serie + (l.estado === 'oficial' ? '' : ' · por cotejar'));
+            hablar('Línea para ' + l.alias);
+        }
+        if (claveA && claveA !== vistoApagon) {
+            vistoApagon = claveA;
+            toast('🌟 ¡APAGÓN! ' + a.alias + ' · cartón ' + a.serie + (a.estado === 'oficial' ? '' : ' · por cotejar'));
+            hablar('Apagón para ' + a.alias);
+        }
     }
 
     /* --------------------------- cantador --------------------------- */
@@ -250,7 +357,23 @@
         if (document.activeElement !== $('cfTipoLinea')) $('cfTipoLinea').value = estado.tipoLinea;
         if (document.activeElement !== $('cfLetras')) $('cfLetras').value = estado.config.letras;
         $('cfCantoAuto').checked = !!estado.cantarAutomatico;
+        $('cfExigirAbono').checked = !!estado.exigirAbono;
         $('enlaceSala').textContent = 'Enlace para jugadores: ' + urlSala() + '  (toca para copiar)';
+
+        // Ronda: los jugadores abonan y esperan el canto del cantador
+        const jugadores = estado.jugadores.filter(x => x.rol !== 'cantador');
+        const abonados = jugadores.filter(x => x.pedidos.length && x.pedidos.every(c => c.pagado === 'pagado')).length;
+        const conCartones = jugadores.filter(x => x.cartones > 0).length;
+        $('btnIniciar').disabled = !!estado.iniciada;
+        $('btnIniciar').textContent = estado.iniciada ? '▶ Ronda en curso' : '▶ Iniciar ronda';
+        $('txtInicio').innerHTML = (estado.iniciada
+            ? 'Ronda <strong>en curso</strong>. '
+            : 'Ronda <strong>sin empezar</strong>: los jugadores están abonando y esperando tu canto. ') +
+            'Jugadores: <strong>' + jugadores.length + '</strong> · con cartones: <strong>' + conCartones + '</strong>' +
+            ' · con abono confirmado: <strong>' + abonados + '</strong>' +
+            ' · cantados: <strong>' + estado.sorteo.salidos.length + '/75</strong>';
+
+        renderCotejos();
 
         const d = estado.dinero;
         $('kpis').innerHTML =
@@ -267,6 +390,7 @@
                     : '<span class="g-badge ' + (j.pedidos.some(c => c.pagado === 'declarado') ? 'declarado' : 'pendiente') + '">' +
                       (pagados > 0 ? pagados + '/' + j.pedidos.length + ' pagados' : 'pendiente') + '</span>');
             const acciones = [];
+            if (j.cartones) acciones.push('<button class="g-btn mini dark" data-vista="' + j.pid + '" title="Ver sus cartones y aciertos">🔍 Ver</button>');
             if (j.pedidos.some(c => c.pagado !== 'pagado')) acciones.push('<button class="g-btn mini" data-acc="pagar" data-j="' + j.pid + '">Cobrar</button>');
             if (j.pedidos.some(c => c.pagado === 'pagado')) acciones.push('<button class="g-btn mini ghost" data-acc="devolver" data-j="' + j.pid + '">↩︎</button>');
             if (j.rol !== 'cantador') acciones.push('<button class="g-btn mini dark" data-acc="bombo" data-j="' + j.pid + '" title="Pasar el bombo">🎤</button>');
@@ -285,6 +409,248 @@
     const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const kpi = (t, v) => '<div class="g-kpi"><span>' + t + '</span><strong>' + v + '</strong></div>';
 
+    /** Panel de cotejo: cada canto con su cartón congelado para verificar si ganó */
+    function renderCotejos() {
+        const cont = $('listaCotejos');
+        if (!cont) return;
+        const lista = estado.cotejos || [];
+        if (!lista.length) {
+            cont.innerHTML = '<p class="g-hint">Sin cantos todavía. Cuando alguien cante línea o apagón aparecerá aquí su cartón para cotejarlo.</p>';
+            return;
+        }
+        cont.innerHTML = lista.map(co => {
+            const e = co.evidencia || {};
+            const a = e.analisis || {};
+            const chip = co.estado === 'rechazado'
+                ? '<span class="g-badge pendiente">rechazado</span>'
+                : (co.anulado ? '<span class="g-badge pendiente">anulado</span>'
+                    : (co.confirmado ? '<span class="g-badge pagado">dado por bueno</span>'
+                        : '<span class="g-badge declarado">por cotejar</span>'));
+            const botones = (co.estado === 'valido' && !co.confirmado && !co.anulado)
+                ? '<button class="g-btn mini" data-cotejo="' + co.id + '" data-decision="confirmar">✔ Dar por bueno</button>' +
+                  '<button class="g-btn mini peligro" data-cotejo="' + co.id + '" data-decision="anular">✘ Anular</button>'
+                : '';
+            return '<div class="g-cotejo">' +
+                '<div class="g-cotejo-cab">' +
+                '<strong>' + (co.premio === 'linea' ? '🏆 LÍNEA' : '🌟 APAGÓN') + ' · ' + esc(co.alias) + '</strong>' +
+                '<span class="g-serie">cartón ' + esc(co.serie) + ' · ' + co.hora + '</span>' + chip + '</div>' +
+                (co.motivo ? '<p class="g-hint">' + esc(co.motivo) + '</p>' : '') +
+                miniCarton(e.rows || [], e.marcadas || [], e.salidos || [], e.letras) +
+                '<p class="g-hint">' + resumenAciertos(a, e.letras, e.tipoLinea) +
+                ' · números cantados al canto: ' + (e.salidos ? e.salidos.length : 0) + '/75</p>' +
+                (botones ? '<div class="g-botones">' + botones + '</div>' : '') +
+                '</div>';
+        }).join('');
+    }
+
+    /* --------------------------- cotejo / verificación --------------------------- */
+
+    function abrirModal(titulo, html) {
+        $('modalTitulo').textContent = titulo;
+        $('modalCuerpo').innerHTML = html;
+        $('modal').classList.remove('g-hidden');
+    }
+
+    function cerrarModal() {
+        $('modal').classList.add('g-hidden');
+        $('modalCuerpo').innerHTML = '';
+    }
+
+    /** Cartón de solo lectura: sirve para cotejar (marcas + números cantados) */
+    function miniCarton(rows, marcadas, salidos, esquema) {
+        const L = LETRAS[esquema] || LETRAS.ABCDE;
+        const marcas = new Set(marcadas || []);
+        const sal = new Set(salidos || []);
+        const filas = [0, 1, 2, 3, 4].map(r => [0, 1, 2, 3, 4].map(c => r + '-' + c).every(k => marcas.has(k)));
+        let h = '<div class="g-mini"><div class="g-mini-grid">';
+        L.forEach(l => { h += '<div class="g-mini-head">' + l + '</div>'; });
+        h += '<div class="g-mini-head rail"></div>';
+        for (let r = 0; r < 5; r++) {
+            for (let c = 0; c < 5; c++) {
+                const v = rows[r][c];
+                const key = r + '-' + c;
+                const marcada = v === 'LIBRE' || marcas.has(key);
+                const salio = v !== 'LIBRE' && sal.has(v);
+                h += '<div class="g-mini-cell' + (salio ? ' salio' : '') + (marcada ? ' marcado' : '') +
+                    (filas[r] ? ' fila-ok' : '') + '">' + (v === 'LIBRE' ? '★' : v) + '</div>';
+            }
+            h += '<div class="g-mini-rail' + (filas[r] ? ' ok' : '') + '">' + (filas[r] ? '✓' : (r + 1)) + '</div>';
+        }
+        return h + '</div></div>';
+    }
+
+    /** Explica los aciertos por fila, columna y diagonal (lo que mira el ganador) */
+    function resumenAciertos(a, esquema, tipoLinea) {
+        const nombres = ['1ª', '2ª', '3ª', '4ª', '5ª'];
+        const partes = [];
+        const filas = [];
+        (a.filas || []).forEach((ok, i) => { if (ok) filas.push(nombres[i]); });
+        partes.push(filas.length ? '<span class="g-ok">Filas completas: ' + filas.join(', ') + '</span>'
+            : 'Filas completas: ninguna');
+        if (tipoLinea === 'cualquiera') {
+            const cols = [];
+            (a.columnas || []).forEach((ok, i) => { if (ok) cols.push((i + 1) + 'ª'); });
+            const diag = [];
+            (a.diagonales || []).forEach((ok, i) => { if (ok) diag.push(i === 0 ? '↘' : '↙'); });
+            if (cols.length) partes.push('Columnas: ' + cols.join(', '));
+            if (diag.length) partes.push('Diagonales: ' + diag.join(', '));
+        }
+        partes.push('Aciertos: <strong>' + (a.aciertos || 0) + '/' + (a.total || 24) + '</strong>' +
+            (a.apagon ? ' · <span class="g-ok">cartón lleno</span>' : ''));
+        return partes.join(' · ');
+    }
+
+    function textoInvitacion() {
+        return '🎱 AplicaBingo — te invito a la sala ' + codigo + '.\n' +
+            'Entra con tu alias: ' + urlSala() + '\n' +
+            'Recibes tus cartones, abonas lo que te toca y esperas el canto.';
+    }
+
+    async function copiarEnlace() {
+        const url = urlSala();
+        try { await navigator.clipboard.writeText(url); toast('Enlace copiado: ' + url); }
+        catch (e) { prompt('Comparte este enlace con los jugadores:', url); }
+    }
+
+    async function compartir() {
+        const texto = textoInvitacion();
+        if (navigator.share) {
+            try { await navigator.share({ title: 'AplicaBingo · sala ' + codigo, text: texto, url: urlSala() }); return; }
+            catch (e) { if (e && e.name === 'AbortError') return; }
+        }
+        try { await navigator.clipboard.writeText(texto); toast('Invitación copiada. Pégala en tu grupo.'); }
+        catch (e) { prompt('Copia esta invitación:', texto); }
+    }
+
+    function abrirModalInvitacion(destacado) {
+        const wa = 'https://wa.me/?text=' + encodeURIComponent(textoInvitacion());
+        abrirModal('Invitar jugadores a la sala ' + codigo,
+            (destacado ? '<p class="g-destacado">Ahora cantas tú: envía la invitación para que entren los jugadores.</p>' : '') +
+            '<p class="g-enlace" id="enlaceModal">' + urlSala() + '</p>' +
+            '<div class="g-botones">' +
+            '<button class="g-btn" id="btnCompartir" type="button">📨 Compartir</button>' +
+            '<button class="g-btn ghost" id="btnCopiar2" type="button">Copiar enlace</button>' +
+            '<a class="g-btn ghost" href="' + wa + '" target="_blank" rel="noopener">WhatsApp</a>' +
+            '</div>' +
+            '<p class="g-hint">Quien abra ese enlace solo escribe su alias, recibe sus cartones, abona y espera tu canto.</p>');
+        $('btnCompartir').addEventListener('click', compartir);
+        $('btnCopiar2').addEventListener('click', copiarEnlace);
+    }
+
+    /** Fondo de los cartones: foto propia, foto para toda la sala o patrón */
+    function abrirModalFondo() {
+        const soyCantador = estado && estado.yo.rol === 'cantador';
+        const deSala = (estado && estado.fondo) ? estado.fondo : { tipo: 'ninguno', patron: '', opacidad: 0.35 };
+        const mio = fondoLocal || { tipo: 'ninguno', patron: '', opacidad: deSala.opacidad };
+        const op = Math.round(((mio.opacidad === undefined || mio.opacidad === null) ? deSala.opacidad : mio.opacidad) * 100);
+        abrirModal('Fondo de los cartones',
+            '<p class="g-hint">Pon una foto o un patrón detrás de los números: los números siguen viéndose bien.</p>' +
+            '<div class="g-botones">' +
+            '<button class="g-btn ghost mini" data-fondo-mio="ninguno" type="button">Sin fondo</button>' +
+            '<button class="g-btn ghost mini" data-fondo-mio="papel" type="button">Papel</button>' +
+            '<button class="g-btn ghost mini" data-fondo-mio="tela" type="button">Tela</button>' +
+            '<button class="g-btn ghost mini" data-fondo-mio="madera" type="button">Madera</button>' +
+            '</div><div class="g-botones">' +
+            '<button class="g-btn mini" id="btnFotoPropia" type="button">📷 Foto mía</button>' +
+            (soyCantador ? '<button class="g-btn mini dark" id="btnFotoSala" type="button">📷 Foto para toda la sala</button>' : '') +
+            '</div>' +
+            '<label class="g-config-label" for="rangoFondo">Intensidad de la foto: <span id="fondoOpacidad">' + op + '%</span></label>' +
+            '<input type="range" id="rangoFondo" min="5" max="95" step="5" value="' + op + '">' +
+            '<input type="file" id="fotoPropia" accept="image/*" class="g-hidden">' +
+            '<input type="file" id="fotoSala" accept="image/*" class="g-hidden">' +
+            '<p class="g-hint">' + (soyCantador
+                ? 'El fondo de la sala lo ven todos; «Foto mía» solo se ve en este dispositivo.'
+                : 'Tu elección solo se ve en este dispositivo. El fondo de la sala lo decide el cantador.') + '</p>');
+
+        $('rangoFondo').addEventListener('input', () => { $('fondoOpacidad').textContent = $('rangoFondo').value + '%'; });
+        $('rangoFondo').addEventListener('change', () => {
+            const valor = Number($('rangoFondo').value) / 100;
+            if (soyCantador && deSala.tipo !== 'ninguno') {
+                accion('fondo', { fondo: { tipo: deSala.tipo, patron: deSala.patron, opacidad: valor } });
+            } else {
+                const f = fondoLocal || { tipo: deSala.tipo, patron: deSala.patron, opacidad: valor };
+                f.opacidad = valor;
+                guardarFondoLocal(f);
+            }
+        });
+        $('btnFotoPropia').addEventListener('click', () => $('fotoPropia').click());
+        $('fotoPropia').addEventListener('change', () => {
+            const f = $('fotoPropia').files[0];
+            if (!f) return;
+            prepararFoto(f, 1400, (dataUrl) => {
+                guardarFondoLocal({ tipo: 'foto', foto: dataUrl, opacidad: Number($('rangoFondo').value) / 100 });
+                toast('Fondo aplicado en este dispositivo');
+                cerrarModal();
+            }, (msg) => toast(msg, true));
+        });
+        if ($('btnFotoSala')) {
+            $('btnFotoSala').addEventListener('click', () => $('fotoSala').click());
+            $('fotoSala').addEventListener('change', () => {
+                const f = $('fotoSala').files[0];
+                if (!f) return;
+                toast('Preparando la foto…');
+                prepararFoto(f, 1400, async (dataUrl) => {
+                    guardarFondoLocal(null);
+                    const out = await accion('fondo', { fondo: { tipo: 'foto', opacidad: Number($('rangoFondo').value) / 100 }, foto: dataUrl });
+                    if (out && !out.error) { toast('Foto aplicada a los cartones de toda la sala'); cerrarModal(); }
+                }, (msg) => toast(msg, true));
+            });
+        }
+    }
+
+    /** Verificación del cantador: el cartón de un jugador, con sus aciertos */
+    async function verCartonesDeJugador(pidDestino) {
+        const j = (estado.jugadores || []).find(x => x.pid === pidDestino);
+        if (!j) return;
+        abrirModal('Cartones de ' + j.alias, '<p class="g-hint">Cargando cartones…</p>');
+        const trozos = [];
+        for (const c of j.pedidos) {
+            const out = await accion('verCarton', { cartonId: c.id });
+            if (!out || out.error) continue;
+            const ca = out.carton;
+            trozos.push('<div class="g-ver">' +
+                '<div class="g-cotejo-cab"><strong>Cartón ' + esc(ca.serie) + '</strong>' +
+                '<span class="g-badge ' + ca.pagado + '">' + (ca.pagado === 'pagado' ? 'abonado' : ca.pagado) + '</span></div>' +
+                miniCarton(ca.rows, ca.marcadas, ca.salidos, ca.letras) +
+                '<p class="g-hint">' + resumenAciertos(ca, ca.letras, ca.tipoLinea) + '</p></div>');
+        }
+        abrirModal('Cartones de ' + j.alias, trozos.join('') ||
+            '<p class="g-hint">Ese jugador todavía no tiene cartones.</p>');
+    }
+
+    /** El ganador ve sus aciertos: filas completas, avance del apagón y lo que falta */
+    function abrirMiCotejo() {
+        if (!estado || !estado.yo.cartones.length) {
+            abrirModal('Mi cotejo', '<p class="g-hint">Todavía no tienes cartones.</p>');
+            return;
+        }
+        const esquema = estado.config.letras || 'ABCDE';
+        const nombres = ['1ª', '2ª', '3ª', '4ª', '5ª'];
+        const html = estado.yo.cartones.map((c, i) => {
+            const marcas = new Set(c.marcadas);
+            const faltan = [];
+            for (let r = 0; r < 5; r++) {
+                for (let k = 0; k < 5; k++) {
+                    const v = c.rows[r][k];
+                    if (v === 'LIBRE') continue;
+                    if (!marcas.has(r + '-' + k)) faltan.push(letraDe(v, esquema) + ' ' + String(v).padStart(2, '0'));
+                }
+            }
+            const filas = [];
+            (c.filas || []).forEach((ok, r) => { if (ok) filas.push(nombres[r]); });
+            return '<div class="g-ver">' +
+                '<div class="g-cotejo-cab"><strong>Cartón ' + (i + 1) + ' · ' + esc(c.serie) + '</strong>' +
+                '<span class="g-badge ' + c.pagado + '">' + (c.pagado === 'pagado' ? 'abonado' : c.pagado) + '</span></div>' +
+                miniCarton(c.rows, c.marcadas, estado.sorteo.salidos, esquema) +
+                '<p class="g-hint">' + resumenAciertos(c, esquema, estado.tipoLinea) +
+                (filas.length ? ' · filas ganadas: <span class="g-ok">' + filas.join(', ') + '</span>' : '') +
+                '<br>Te faltan ' + faltan.length + ' número(s): ' +
+                esc(faltan.slice(0, 14).join(', ') || 'ninguno: ¡cartón completo!') + (faltan.length > 14 ? ' …' : '') + '</p></div>';
+        }).join('');
+        abrirModal('Mi cotejo — ' + estado.yo.alias, html +
+            '<p class="g-hint">Al completar una fila o todo el cartón pulsa «🏆 ¡LÍNEA!» o «🌟 ¡APAGÓN!»: el cantador verá tu cartón y lo cotejará.</p>');
+    }
+
     /* --------------------------- jugador --------------------------- */
 
     function cartonHTML(c, indice) {
@@ -292,28 +658,42 @@
         const letras = LETRAS[esquema];
         const salidos = new Set(estado.sorteo.salidos);
         const marcas = new Set(c.marcadas);
-        const clase = 'g-carton' + (c.apagon ? ' apagon' : (c.linea ? ' linea' : ''));
+        const clase = 'g-carton' + (c.apagon ? ' apagon' : (c.linea ? ' linea' : '')) + (c.pagado === 'pagado' ? '' : ' sin-pagar');
 
         let h = '<div class="' + clase + '">' +
-            '<div class="g-carton-top"><span class="g-serie">Cartón ' + (indice + 1) + ' · ' + c.serie + '</span>' +
+            '<div class="g-carton-top"><span class="g-serie">Cartón ' + (indice + 1) + ' · ' + esc(c.serie) + '</span>' +
             '<span class="g-spacer"></span>' +
             '<span class="g-badge ' + c.pagado + '">' + (c.pagado === 'pagado' ? 'abonado' : c.pagado) + '</span>' +
             '<button class="g-x" data-quitar="' + c.id + '" title="Quitar cartón">✕</button></div><div class="g-grid">';
 
         letras.forEach(l => { h += '<div class="g-head">' + l + '</div>'; });
+        h += '<div class="g-head rail">fila</div>';
 
         for (let r = 0; r < 5; r++) {
             for (let col = 0; col < 5; col++) {
                 const v = c.rows[r][col];
                 const key = r + '-' + col;
-                if (v === 'LIBRE') { h += '<div class="g-cell libre marcado">LIBRE</div>'; continue; }
+                if (v === 'LIBRE') { h += '<div class="g-cell libre marcado">★</div>'; continue; }
                 const salio = salidos.has(v);
                 const marcada = marcas.has(key);
-                const cls = 'g-cell ' + (marcada ? 'marcado' : (salio ? 'cantado' : 'bloqueado')) + (v === estado.sorteo.actual ? ' actual' : '');
+                const cls = 'g-cell ' + (marcada ? 'marcado' : (salio ? 'cantado' : 'bloqueado')) +
+                    ((c.filas && c.filas[r]) ? ' enlinea' : '') + (v === estado.sorteo.actual ? ' actual' : '');
                 h += '<button class="' + cls + '" data-carton="' + c.id + '" data-key="' + key + '"' + (salio ? '' : ' disabled') + '>' + v + '</button>';
             }
+            h += '<div class="g-rail' + ((c.filas && c.filas[r]) ? ' ok' : '') + '" title="Fila ' + (r + 1) + '">' +
+                ((c.filas && c.filas[r]) ? '✓' : (r + 1)) + '</div>';
         }
-        return h + '</div></div>';
+        h += '</div>';
+
+        const aciertos = c.aciertos || 0;
+        const total = c.total || 24;
+        const pct = Math.round(100 * aciertos / total);
+        h += '<div class="g-progreso" title="Avance del cartón"><div class="g-progreso-barra" style="width:' + pct + '%"></div></div>' +
+            '<div class="g-carton-pie">Aciertos <strong>' + aciertos + '/' + total + '</strong> · ' +
+            (c.apagon ? '<span class="g-ok">CARTÓN COMPLETO</span>'
+                : (c.linea ? '<span class="g-ok">línea completa</span>' : 'faltan ' + (total - aciertos))) +
+            '</div>';
+        return h + '</div>';
     }
 
     function renderJugador() {
@@ -321,8 +701,23 @@
         const esquema = estado.config.letras || 'ABCDE';
         $('jActual').textContent = s.actual ? letraDe(s.actual, esquema) + ' ' + String(s.actual).padStart(2, '0') : '--';
         $('jRestantes').textContent = s.restantes;
-        $('jPremioLinea').textContent = estado.premioLinea ? estado.premioLinea.alias : 'en juego';
-        $('jPremioApagon').textContent = estado.premioApagon ? estado.premioApagon.alias : 'en juego';
+        $('jPremioLinea').textContent = estado.premioLinea
+            ? estado.premioLinea.alias + (estado.premioLinea.estado === 'oficial' ? '' : ' (por cotejar)') : 'en juego';
+        $('jPremioApagon').textContent = estado.premioApagon
+            ? estado.premioApagon.alias + (estado.premioApagon.estado === 'oficial' ? '' : ' (por cotejar)') : 'en juego';
+
+        // Sala de espera: hasta que el cantador empiece, solo se abona
+        const cantador = (estado.jugadores.find(x => x.rol === 'cantador') || {}).alias || 'el cantador';
+        const espera = $('esperaJugador');
+        if (estado.iniciada) {
+            espera.classList.add('g-hidden');
+        } else {
+            espera.classList.remove('g-hidden');
+            $('esperaTitulo').textContent = '⏳ Esperando a que ' + cantador + ' empiece a cantar';
+            $('esperaTexto').textContent = estado.yo.cartones.length
+                ? 'Ya tienes tus cartones: abona lo que te toca (el cantador lo confirma) y espera el primer número.'
+                : 'Pide tus cartones con «＋ Cartón», abona y espera el primer número.';
+        }
 
         $('cartonesJugador').innerHTML = estado.yo.cartones.length
             ? estado.yo.cartones.map(cartonHTML).join('')
@@ -334,6 +729,8 @@
             yo.cartones.length + ' cartón(es) = <strong>' + dinero(yo.total, d.moneda) + '</strong>' +
             (yo.debe > 0 ? ' · debes <strong style="color:#c53030">' + dinero(yo.debe, d.moneda) + '</strong>' : ' · <strong style="color:#1f9d55">sin saldo pendiente</strong>') +
             ' · pozo actual ' + dinero(d.recaudado, d.moneda) + ' (línea ' + dinero(d.premioLinea, d.moneda) + ' / apagón ' + dinero(d.premioApagon, d.moneda) + ')';
+
+        if (estado.exigirAbono) $('jMonto').innerHTML += ' · se exige abono confirmado para validar un premio';
 
         $('btnAbonar').disabled = yo.cartones.length === 0 || yo.debe === 0;
         $('btnPedir1').disabled = yo.cartones.length >= 10;
@@ -385,9 +782,35 @@
     $('cfTipoLinea').addEventListener('change', () => accion('config', { tipoLinea: $('cfTipoLinea').value }));
     $('cfLetras').addEventListener('change', () => accion('config', { config: { letras: $('cfLetras').value } }));
     $('cfCantoAuto').addEventListener('change', () => accion('config', { cantarAutomatico: $('cfCantoAuto').checked }));
+    $('cfExigirAbono').addEventListener('change', () => accion('config', { exigirAbono: $('cfExigirAbono').checked }));
+
+    // Ronda y cotejo
+    $('btnIniciar').addEventListener('click', async () => {
+        const out = await accion('iniciar');
+        if (!out.error) toast('▶ Ronda iniciada. ¡Canta el primer número!');
+    });
+
+    $('listaCotejos').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-cotejo]');
+        if (!b) return;
+        accion('cotejo', { cotejoId: b.dataset.cotejo, decision: b.dataset.decision });
+    });
+
+    $('modalCuerpo').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-fondo-mio]');
+        if (!b) return;
+        const rango = $('rangoFondo');
+        const op = rango ? Number(rango.value) / 100 : 0.35;
+        const valor = b.dataset.fondoMio;
+        if (valor === 'ninguno') guardarFondoLocal({ tipo: 'ninguno', opacidad: op });
+        else guardarFondoLocal({ tipo: 'patron', patron: valor, opacidad: op });
+        toast('Fondo aplicado en este dispositivo');
+    });
 
     // Acciones sobre jugadores
     $('tablaJugadores').addEventListener('click', async (e) => {
+        const ver = e.target.closest('[data-vista]');
+        if (ver && estado) { verCartonesDeJugador(ver.dataset.vista); return; }
         const btn = e.target.closest('[data-acc]');
         if (!btn || !estado) return;
         const j = estado.jugadores.find(x => x.pid === btn.dataset.j);
@@ -433,23 +856,30 @@
 
     $('btnLinea').addEventListener('click', async () => {
         const out = await accion('cantarPremio', { premio: 'linea' });
-        if (!out.error) toast('🏆 ¡Línea cantada!');
+        if (!out.error) toast('🏆 ¡Línea cantada! El cantador la cotejará.');
     });
     $('btnApagon').addEventListener('click', async () => {
         const out = await accion('cantarPremio', { premio: 'apagon' });
-        if (!out.error) toast('🌟 ¡Apagón cantado!');
+        if (!out.error) toast('🌟 ¡Apagón cantado! El cantador lo cotejará.');
     });
+    $('btnMiCotejo').addEventListener('click', abrirMiCotejo);
 
-    // Cabecera
-    const urlSala = () => location.origin + '/grupo.html?sala=' + codigo;
-    async function copiarEnlace() {
-        const url = urlSala();
-        try { await navigator.clipboard.writeText(url); toast('Enlace copiado: ' + url); }
-        catch (e) { prompt('Comparte este enlace con los jugadores:', url); }
-    }
+    // Cabecera, invitación, fondo y salida
     $('btnCopiar').addEventListener('click', copiarEnlace);
     $('enlaceSala').addEventListener('click', copiarEnlace);
     $('btnRecargar').addEventListener('click', () => location.reload());
+    $('btnInvitar').addEventListener('click', () => abrirModalInvitacion(false));
+    $('btnInvitar2').addEventListener('click', () => abrirModalInvitacion(false));
+    $('btnFondo').addEventListener('click', abrirModalFondo);
+    $('modalCerrar').addEventListener('click', cerrarModal);
+    $('modal').addEventListener('click', (e) => { if (e.target === $('modal')) cerrarModal(); });
+    $('btnSalir').addEventListener('click', async () => {
+        if (!confirm('¿Salir de la sala? Si eras el cantador, el bombo pasa al siguiente jugador.')) return;
+        await accion('salir');
+        localStorage.removeItem('bg_sala');
+        cerrarModal();
+        location.href = 'index.html';
+    });
 
     window.addEventListener('keydown', (e) => {
         if (e.code === 'Space' && estado && estado.yo.rol === 'cantador' && !estado.sorteo.auto && estado.sorteo.restantes > 0
@@ -462,10 +892,14 @@
     /* --------------------------- arranque --------------------------- */
 
     $('inAlias').value = localStorage.getItem('bg_alias') || '';
+    $('inSala').value = params.get('sala') ? codigo : '';
+    codigo = ($('inSala').value || '').toUpperCase();
     actualizarDestino();
     comprobarServidor();
+    revisarSala();
 
-    if (codigo && localStorage.getItem('bg_alias')) {
+    // Con enlace de invitación (?sala=XXXX) y alias ya guardado se entra directo
+    if (params.get('sala') && codigo && localStorage.getItem('bg_alias')) {
         entrar(localStorage.getItem('bg_alias'), codigo);
     }
 })();

@@ -3,3 +3,12 @@
 
 # Dependencias (el servidor no usa ninguna, pero por si acaso)
 node_modules/
+
+# Archivos temporales de trabajo (extractos, parches y pruebas locales)
+_p_*.txt
+_nuevo_*.html
+_prueba_edicion.txt
+_patch.js
+_diag.js
+_estatico.js
+_e2e.js
