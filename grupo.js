@@ -64,21 +64,62 @@
         window.speechSynthesis.speak(u);
     }
 
+    /* -------- Diagnóstico: ¿la página la sirve el servidor del juego? -------- */
+    function pistaServidor() {
+        if (location.protocol === 'file:') {
+            return 'Estás abriendo el archivo directamente (file://). Ejecuta «node server.js» en la carpeta del proyecto y entra por http://localhost:3000/grupo.html';
+        }
+        return 'Parece que esta página no la sirve el servidor del juego (estás en ' + location.origin + '). ' +
+            'Ejecuta «node server.js» en la carpeta del proyecto y entra por http://localhost:3000/grupo.html. ' +
+            'No uses Live Server, XAMPP, «npx serve» ni otro servidor estático: solo devuelven HTML y el juego necesita su API.';
+    }
+
+    function mostrarAviso(texto) {
+        const el = $('avisoServidor');
+        el.textContent = texto;
+        el.classList.remove('g-hidden');
+    }
+
+    function ocultarAviso() { $('avisoServidor').classList.add('g-hidden'); }
+
+    async function comprobarServidor() {
+        if (location.protocol === 'file:') { mostrarAviso('⚠️ ' + pistaServidor()); return; }
+        try {
+            const r = await fetch('/api/salud', { cache: 'no-store' });
+            const j = JSON.parse(await r.text());
+            if (!j || j.ok !== true) throw new Error('respuesta inesperada');
+            ocultarAviso();
+        } catch (e) {
+            mostrarAviso('⚠️ No se pudo comprobar el servidor del juego (¿está corriendo «node server.js»?). ' + pistaServidor());
+        }
+    }
+
     async function accion(tipo, datos) {
         const body = Object.assign({ tipo, codigo, pid }, datos || {});
+        let r;
         try {
-            const r = await fetch('/api/accion', {
+            r = await fetch('/api/accion', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
-            const out = await r.json().catch(() => ({ error: 'Respuesta inválida del servidor' }));
-            if (out.error) toast(out.error, true);
-            return out;
         } catch (e) {
-            toast('Sin conexión con el servidor', true);
+            mostrarAviso('⚠️ No se pudo conectar con el servidor del juego. ' + pistaServidor());
+            toast('Sin conexión con el servidor del juego', true);
             return { error: 'red' };
         }
+
+        const texto = await r.text();
+        let out = null;
+        try { out = JSON.parse(texto); } catch (e) { out = null; }
+        if (!out || typeof out !== 'object') {
+            const tipoResp = (r.headers.get('content-type') || 'desconocido').split(';')[0];
+            mostrarAviso('⚠️ El servidor respondió HTTP ' + r.status + ' (' + tipoResp + ') en lugar de JSON. ' + pistaServidor());
+            toast('Respuesta inválida del servidor (HTTP ' + r.status + ')', true);
+            return { error: 'invalida' };
+        }
+        if (out.error) toast(out.error, true);
+        return out;
     }
 
     /* --------------------------- ingreso --------------------------- */
@@ -118,8 +159,11 @@
 
     /* --------------------------- conexión --------------------------- */
 
+    let sseAbierto = false;
+
     function conectar() {
         if (es) es.close();
+        sseAbierto = false;
         es = new EventSource('/api/eventos?sala=' + encodeURIComponent(codigo) + '&pid=' + encodeURIComponent(pid));
         es.onmessage = (ev) => {
             let d;
@@ -127,8 +171,11 @@
             if (d.tipo === 'estado') { estado = d; render(); }
             else if (d.tipo === 'error') toast(d.texto, true);
         };
-        es.onopen = () => $('hOnline').classList.remove('off');
-        es.onerror = () => $('hOnline').classList.add('off');
+        es.onopen = () => { sseAbierto = true; $('hOnline').classList.remove('off'); ocultarAviso(); };
+        es.onerror = () => {
+            $('hOnline').classList.add('off');
+            if (!sseAbierto) mostrarAviso('⚠️ Sin conexión en vivo con la sala. ' + pistaServidor());
+        };
     }
 
     /* --------------------------- render --------------------------- */
@@ -416,6 +463,7 @@
 
     $('inAlias').value = localStorage.getItem('bg_alias') || '';
     actualizarDestino();
+    comprobarServidor();
 
     if (codigo && localStorage.getItem('bg_alias')) {
         entrar(localStorage.getItem('bg_alias'), codigo);

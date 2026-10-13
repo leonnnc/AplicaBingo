@@ -208,6 +208,13 @@ body.grupo {
 @keyframes entra { from { opacity: 0; transform: translate(-50%, -14px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .g-toast.malo { background: linear-gradient(#f05252, #c53030); color: #fff; border-color: #7f1d1d; font-family: 'Roboto', sans-serif; font-style: normal; font-size: 0.95rem; }
 
+/* ---------- Aviso de servidor ---------- */
+.g-banner {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+    background: #7f1d1d; color: #fff; font-size: 0.82rem; line-height: 1.45; font-weight: 600;
+    padding: 0.6rem 0.9rem; text-align: center; box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.25);
+}
+
 /* ---------- Móvil ---------- */
 @media (max-width: 640px) {
     .g-config { grid-template-columns: 1fr 1fr; }
