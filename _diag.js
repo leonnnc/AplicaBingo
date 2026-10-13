@@ -5,8 +5,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PUERTO_JUEGO = 3000;
-const PUERTO_ESTATICO = 5500;
+const PUERTO_JUEGO = 5501;
+const PUERTO_ESTATICO = 5600;
 const esperar = (ms) => new Promise(r => setTimeout(r, ms));
 
 /* Igual que en grupo.js: así se interpreta la respuesta */

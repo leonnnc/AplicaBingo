@@ -61,10 +61,10 @@
 
     function pista() {
         if (location.protocol === 'file:') {
-            return 'Abre esta página desde el servidor del juego: ejecuta «node server.js» y entra por http://localhost:3000/';
+            return 'Abre esta página desde el servidor del juego: ejecuta «node server.js» y entra por http://localhost:5500/';
         }
         return 'No se pudo hablar con el servidor del juego en ' + location.origin +
-            '. Ejecuta «node server.js» en la carpeta del proyecto y entra por http://localhost:3000/ ' +
+            '. Ejecuta «node server.js» en la carpeta del proyecto y entra por http://localhost:5500/ ' +
             '(no uses Live Server ni otro servidor estático: solo devuelven archivos, no el juego).';
     }
 

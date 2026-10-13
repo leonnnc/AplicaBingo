@@ -1,8 +1,10 @@
 /**
  * AplicaBingo — Servidor sin dependencias (Node >= 18)
  * Uso:  node server.js [puerto]
- * Abre: http://localhost:3000/            (entrada: alias + sala)
- *       http://localhost:3000/grupo.html?sala=XXXX
+ * Abre: http://localhost:5500/            (entrada: alias + sala)
+ *       http://localhost:5500/grupo.html?sala=XXXX
+ *
+ * Si el puerto esta ocupado prueba con el siguiente (5501, 5502...).
  *
  * El servidor es la AUTORIDAD: el primero que entra crea la sala y canta;
  * si el cantador sale, el bombo pasa al siguiente. Genera los cartones
@@ -15,7 +17,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const PUERTO = parseInt(process.argv[2], 10) || 3000;
+const PUERTO_BASE = parseInt(process.argv[2], 10) || 5500;
+let PUERTO = PUERTO_BASE;
 const ROOT = __dirname;
 
 const MIME = {
@@ -833,6 +836,17 @@ const servidor = http.createServer(async (req, res) => {
     }
 
     return estatico(req, res, url);
+});
+
+servidor.on('error', (e) => {
+    if (e.code === 'EADDRINUSE' && PUERTO < PUERTO_BASE + 20) {
+        console.log('  El puerto ' + PUERTO + ' esta ocupado: probando el ' + (PUERTO + 1) + '...');
+        PUERTO += 1;
+        servidor.listen(PUERTO, '0.0.0.0');
+        return;
+    }
+    console.error('  No se pudo iniciar el servidor: ' + e.message);
+    process.exit(1);
 });
 
 servidor.listen(PUERTO, '0.0.0.0', () => {

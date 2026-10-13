@@ -131,10 +131,10 @@
     /* -------- Diagnóstico: ¿la página la sirve el servidor del juego? -------- */
     function pistaServidor() {
         if (location.protocol === 'file:') {
-            return 'Estás abriendo el archivo directamente (file://). Ejecuta «node server.js» en la carpeta del proyecto y entra por http://localhost:3000/grupo.html';
+            return 'Estás abriendo el archivo directamente (file://). Ejecuta «node server.js» en la carpeta del proyecto y entra por http://localhost:5500/grupo.html';
         }
         return 'Parece que esta página no la sirve el servidor del juego (estás en ' + location.origin + '). ' +
-            'Ejecuta «node server.js» en la carpeta del proyecto y entra por http://localhost:3000/grupo.html. ' +
+            'Ejecuta «node server.js» en la carpeta del proyecto y entra por http://localhost:5500/grupo.html. ' +
             'No uses Live Server, XAMPP, «npx serve» ni otro servidor estático: solo devuelven HTML y el juego necesita su API.';
     }
 
