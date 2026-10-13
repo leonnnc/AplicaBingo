@@ -14,106 +14,145 @@
         <!-- Encabezado -->
         <header class="header">
             <h1 class="main-title">Bombo Bingo online gratis</h1>
+            <p style="margin-top:.5rem;font-size:.9rem">👥 <a href="grupo.html" style="color:#8d5300;font-weight:700">Jugar en grupo (varios celulares en la misma red)</a></p>
         </header>
 
-        <!-- Pantalla Principal de Número Actual -->
-        <main class="bingo-stage">
-            <div class="display-row" id="displayRow">
-                <div class="digit-card letter-card" id="cardLetter">
-                    <span class="card-value" id="valLetter">A</span>
-                </div>
-                <div class="digit-card tens-card" id="cardTens">
-                    <span class="card-value" id="valTens">0</span>
-                </div>
-                <div class="digit-card units-card" id="cardUnits">
-                    <span class="card-value" id="valUnits">0</span>
-                </div>
-            </div>
-
-            <!-- Botón Principal de Sorteo -->
-            <button id="btnDraw" class="btn-draw" type="button">
-                <span class="btn-text">Sortear números</span>
-            </button>
-
-            <!-- Barra de Herramientas y Controles Auxiliares -->
-            <div class="controls-panel">
-                <div class="stat-badge">
-                    <span>Cantados:</span>
-                    <strong id="drawnCount">0</strong> / <span id="totalCount">75</span>
+        <div class="app-layout">
+            <!-- Columna principal: Bombo / Sorteo -->
+            <main class="bingo-stage">
+                <!-- Pantalla Principal de Número Actual -->
+                <div class="display-row" id="displayRow">
+                    <div class="digit-card letter-card" id="cardLetter">
+                        <span class="card-value" id="valLetter">A</span>
+                    </div>
+                    <div class="digit-card tens-card" id="cardTens">
+                        <span class="card-value" id="valTens">0</span>
+                    </div>
+                    <div class="digit-card units-card" id="cardUnits">
+                        <span class="card-value" id="valUnits">0</span>
+                    </div>
                 </div>
 
-                <div class="action-buttons">
-                    <button id="btnAuto" class="btn-tool" title="Modo automático">
-                        <span class="icon">⏱️</span> Auto: <span id="autoState">OFF</span>
-                    </button>
-                    <button id="btnVoiceToggle" class="btn-tool active" title="Activar/Desactivar Voz">
-                        <span class="icon" id="voiceIcon">🔊</span> Voz: <span id="voiceState">ON</span>
-                    </button>
-                    <button id="btnRepeat" class="btn-tool" title="Repetir último número cantado">
-                        <span class="icon">🗣️</span> Repetir
-                    </button>
-                    <button id="btnReset" class="btn-tool btn-danger" title="Reiniciar Juego">
-                        <span class="icon">🔄</span> Reiniciar
-                    </button>
-                    <button id="btnSettings" class="btn-tool" title="Configuración">
-                        <span class="icon">⚙️</span>
-                    </button>
-                </div>
-            </div>
+                <!-- Botón Principal de Sorteo -->
+                <button id="btnDraw" class="btn-draw" type="button">
+                    <span class="btn-text">Sortear números</span>
+                </button>
 
-            <!-- Panel de Configuración Plegable -->
-            <div id="settingsModal" class="settings-drawer hidden">
-                <div class="drawer-header">
-                    <h3>Configuración del Bingo</h3>
-                    <button id="btnCloseSettings" class="btn-close">&times;</button>
-                </div>
-                <div class="setting-item">
-                    <label for="namingMode">Tipo de Letras:</label>
-                    <select id="namingMode" class="form-select">
-                        <option value="ABCDE" selected>A - B - C - D - E (Tradicional 1-75)</option>
-                        <option value="BINGO">B - I - N - G - O (Americano 1-75)</option>
-                    </select>
-                </div>
-                <div class="setting-item">
-                    <label for="voiceSelect">Voz del Locutor:</label>
-                    <select id="voiceSelect" class="form-select">
-                        <option value="">Cargando voces en español...</option>
-                    </select>
-                </div>
-                <div class="setting-item">
-                    <label for="speechRate">Velocidad de voz: <span id="rateVal">1.0x</span></label>
-                    <input type="range" id="speechRate" min="0.7" max="1.4" step="0.1" value="1.0">
-                </div>
-                <div class="setting-item">
-                    <label for="autoSpeed">Intervalo de Sorteo Auto: <span id="autoSpeedVal">4s</span></label>
-                    <input type="range" id="autoSpeed" min="2" max="10" step="1" value="4">
-                </div>
-            </div>
+                <!-- Barra de Herramientas y Controles Auxiliares -->
+                <div class="controls-panel">
+                    <div class="stat-badge">
+                        <span>Cantados:</span>
+                        <strong id="drawnCount">0</strong> / <span id="totalCount">75</span>
+                    </div>
 
-            <!-- Tablero de Números -->
-            <div class="board-wrapper">
-                <table class="bingo-board" id="bingoBoard">
-                    <tbody id="boardBody">
-                        <!-- Generado dinámicamente por JavaScript -->
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Historial de Últimas Bolas -->
-            <div class="history-container">
-                <span class="history-label">Últimas cantadas:</span>
-                <div class="history-list" id="historyList">
-                    <span class="empty-history">Ningún número extraído aún</span>
+                    <div class="action-buttons">
+                        <button id="btnAuto" class="btn-tool" title="Modo automático">
+                            <span class="icon">⏱️</span> Auto: <span id="autoState">OFF</span>
+                        </button>
+                        <button id="btnVoiceToggle" class="btn-tool active" title="Activar/Desactivar Voz">
+                            <span class="icon" id="voiceIcon">🔊</span> Voz: <span id="voiceState">ON</span>
+                        </button>
+                        <button id="btnRepeat" class="btn-tool" title="Repetir último número cantado">
+                            <span class="icon">🗣️</span> Repetir
+                        </button>
+                        <button id="btnReset" class="btn-tool btn-danger" title="Reiniciar Juego">
+                            <span class="icon">🔄</span> Reiniciar
+                        </button>
+                        <button id="btnSettings" class="btn-tool" title="Configuración">
+                            <span class="icon">⚙️</span>
+                        </button>
+                    </div>
                 </div>
-            </div>
-        </main>
+
+                <!-- Panel de Configuración Plegable -->
+                <div id="settingsModal" class="settings-drawer hidden">
+                    <div class="drawer-header">
+                        <h3>Configuración del Bingo</h3>
+                        <button id="btnCloseSettings" class="btn-close">&times;</button>
+                    </div>
+                    <div class="setting-item">
+                        <label for="namingMode">Tipo de Letras:</label>
+                        <select id="namingMode" class="form-select">
+                            <option value="ABCDE" selected>A - B - C - D - E (Tradicional 1-75)</option>
+                            <option value="BINGO">B - I - N - G - O (Americano 1-75)</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label for="voiceSelect">Voz del Locutor:</label>
+                        <select id="voiceSelect" class="form-select">
+                            <option value="">Cargando voces en español...</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label for="speechRate">Velocidad de voz: <span id="rateVal">1.0x</span></label>
+                        <input type="range" id="speechRate" min="0.7" max="1.4" step="0.1" value="1.0">
+                    </div>
+                    <div class="setting-item">
+                        <label for="autoSpeed">Intervalo de Sorteo Auto: <span id="autoSpeedVal">4s</span></label>
+                        <input type="range" id="autoSpeed" min="2" max="10" step="1" value="4">
+                    </div>
+                </div>
+
+                <!-- Tablero de Números -->
+                <div class="board-wrapper">
+                    <table class="bingo-board" id="bingoBoard">
+                        <tbody id="boardBody">
+                            <!-- Generado dinámicamente por JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Historial de Últimas Bolas -->
+                <div class="history-container">
+                    <span class="history-label">Últimas cantadas:</span>
+                    <div class="history-list" id="historyList">
+                        <span class="empty-history">Ningún número extraído aún</span>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Columna lateral: Cartones del Jugador -->
+            <aside class="cards-panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">🎟️ Mis cartones</h2>
+                    <span class="panel-counter"><strong id="cardCount">0</strong> / 6</span>
+                </div>
+
+                <p class="panel-hint">
+                    Consigue hasta 6 cartones. Cuando salga la letra y el número, tócalo en tu cartón para marcarlo.
+                </p>
+
+                <div class="cards-actions">
+                    <button id="btnAddCard" class="btn-tool btn-primary-soft" type="button">＋ Generar cartón</button>
+                    <button id="btnAdd3" class="btn-tool" type="button" title="Añadir 3 cartones">+3</button>
+                    <button id="btnAdd6" class="btn-tool" type="button" title="Completar hasta 6 cartones">6 máx</button>
+                    <button id="btnClearCards" class="btn-tool btn-danger" type="button" title="Quitar todos los cartones">🗑️</button>
+                </div>
+
+                <label class="switch-row" for="autoDaub">
+                    <input type="checkbox" id="autoDaub">
+                    <span>Marcado automático (tacha solo)</span>
+                </label>
+
+                <div class="cards-list" id="cardsList">
+                    <p class="empty-cards" id="emptyCards">
+                        Todavía no tienes cartones.<br>Pulsa «Generar cartón» para empezar a jugar.
+                    </p>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Aviso Flotante de Bingo -->
+    <div id="bingoToast" class="bingo-toast hidden">
+        <span id="bingoToastText">¡BINGO!</span>
     </div>
 
     <!-- Modal de Confirmación para Reiniciar -->
     <div id="confirmModal" class="modal-overlay hidden">
         <div class="modal-card">
             <h3>¿Reiniciar partida?</h3>
-            <p>Se borrarán todos los números extraídos y el tablero volverá a cero.</p>
+            <p>Se borrarán todos los números extraídos, las marcas de tus cartones y el tablero volverá a cero.</p>
             <div class="modal-actions">
                 <button id="btnCancelReset" class="btn-modal btn-secondary">Cancelar</button>
                 <button id="btnConfirmReset" class="btn-modal btn-danger">Sí, Reiniciar</button>

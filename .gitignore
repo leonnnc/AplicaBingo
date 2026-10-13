@@ -1,0 +1,5 @@
+# Respaldos locales
+*.bak
+
+# Dependencias (el servidor no usa ninguna, pero por si acaso)
+node_modules/

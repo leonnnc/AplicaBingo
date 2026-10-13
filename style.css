@@ -547,3 +547,331 @@ body {
         justify-content: center;
     }
 }
+
+
+/* ==========================================================================
+   CARTONES DEL JUGADOR (Panel Lateral)
+   ========================================================================== */
+
+/* Contenedor general ampliado para alojar la columna de cartones */
+.app-container {
+    max-width: 1120px;
+}
+
+.app-layout {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    gap: 1.5rem;
+    align-items: start;
+}
+
+/* --- Panel Lateral --- */
+.cards-panel {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 14px;
+    padding: 1rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    backdrop-filter: blur(6px);
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    position: sticky;
+    top: 1.5rem;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+    padding-bottom: 0.5rem;
+}
+
+.panel-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #2b2b2b;
+}
+
+.panel-counter {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #666;
+    background: #ffffff;
+    border: 1px solid #e3e3e3;
+    border-radius: 20px;
+    padding: 0.15rem 0.6rem;
+    white-space: nowrap;
+}
+
+.panel-counter strong {
+    color: #b06200;
+}
+
+.panel-hint {
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: #7a7a7a;
+}
+
+.cards-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.cards-actions .btn-tool {
+    flex: 1 1 auto;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+.cards-actions #btnClearCards {
+    flex: 0 0 auto;
+}
+
+.btn-primary-soft {
+    background: linear-gradient(180deg, #fff4d9 0%, #ffe2ab 100%);
+    border-color: #e0b45f;
+    color: #7a4a00;
+    font-weight: 700;
+}
+
+.btn-primary-soft:hover:not(:disabled) {
+    background: linear-gradient(180deg, #ffefc6 0%, #ffd892 100%);
+    border-color: #cf9f42;
+}
+
+.btn-tool:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.switch-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.8rem;
+    color: #555;
+    cursor: pointer;
+    user-select: none;
+}
+
+.switch-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #f3a808;
+    cursor: pointer;
+}
+
+/* --- Lista de Cartones --- */
+.cards-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.7rem;
+}
+
+.empty-cards {
+    grid-column: 1 / -1;
+    font-size: 0.8rem;
+    font-style: italic;
+    color: #9a9a9a;
+    text-align: center;
+    line-height: 1.45;
+    padding: 1.1rem 0.5rem;
+}
+
+.bingo-card {
+    position: relative;
+    background: #ffffff;
+    border: 1px solid #e6e6e6;
+    border-radius: 10px;
+    padding: 0.4rem;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.card-name {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #9a9a9a;
+}
+
+.card-remove {
+    background: none;
+    border: none;
+    padding: 0 0.15rem;
+    line-height: 1;
+    font-size: 0.85rem;
+    color: #b9b9b9;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.card-remove:hover {
+    color: #e03131;
+}
+
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 2px;
+}
+
+.card-head {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--header-cell-bg);
+    color: var(--header-cell-text);
+    font-weight: 700;
+    font-size: 0.7rem;
+    border-radius: 3px;
+    padding: 0.12rem 0;
+}
+
+.card-cell {
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-family: inherit;
+    font-size: clamp(0.65rem, 2.4vw, 0.92rem);
+    font-weight: 600;
+    color: var(--cell-unmarked-text);
+    background: linear-gradient(180deg, var(--cell-unmarked-top) 0%, var(--cell-unmarked-bottom) 100%);
+    border: 1px solid var(--cell-unmarked-border);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+}
+
+/* Número que todavía no ha salido: no se puede seleccionar */
+.card-cell.locked {
+    background: #eff1f4;
+    border-color: #dfe3e8;
+    color: #a8aeb6;
+    cursor: default;
+    font-weight: 500;
+}
+
+/* Número ya cantado: disponible para seleccionar */
+.card-cell.called {
+    border-color: #e8a200;
+    box-shadow: 0 0 0 2px rgba(243, 168, 8, 0.35);
+}
+
+.card-cell.called:hover {
+    transform: translateY(-1px) scale(1.05);
+    box-shadow: 0 0 0 2px rgba(243, 168, 8, 0.6), 0 3px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Número seleccionado / tachado */
+.card-cell.marked {
+    background: linear-gradient(180deg, var(--cell-marked-top) 0%, var(--cell-marked-bottom) 100%);
+    border-color: var(--cell-marked-border);
+    color: var(--cell-marked-text);
+    font-weight: 700;
+    box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.25);
+}
+
+/* Casilla central libre */
+.card-cell.free {
+    background: linear-gradient(180deg, #3a3a3c 0%, #1c1c1e 100%);
+    border-color: #555;
+    color: #f2f2f2;
+    font-size: 0.55rem;
+    letter-spacing: 0.4px;
+    font-weight: 700;
+    cursor: default;
+    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.4);
+}
+
+/* --- Estado Bingo --- */
+.bingo-card.bingo {
+    border-color: #f3a808;
+    animation: bingoGlow 1s infinite alternate ease-in-out;
+}
+
+@keyframes bingoGlow {
+    from { box-shadow: 0 0 0 3px rgba(243, 168, 8, 0.28), 0 6px 16px rgba(243, 168, 8, 0.25); }
+    to { box-shadow: 0 0 0 5px rgba(243, 168, 8, 0.5), 0 10px 26px rgba(243, 168, 8, 0.45); }
+}
+
+.card-bingo-badge {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-8deg);
+    background: linear-gradient(180deg, var(--btn-gold-top) 0%, var(--btn-gold-bottom) 100%);
+    border: 2px solid var(--btn-gold-border);
+    border-radius: 6px;
+    padding: 0.25rem 0.7rem;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--btn-gold-text);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+}
+
+.bingo-card.bingo .card-bingo-badge {
+    display: block;
+}
+
+/* --- Aviso Flotante de Bingo --- */
+.bingo-toast {
+    position: fixed;
+    top: 1.2rem;
+    left: 50%;
+    z-index: 1200;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, var(--btn-gold-top) 0%, var(--btn-gold-bottom) 100%);
+    border: 2px solid var(--btn-gold-border);
+    border-radius: 12px;
+    padding: 0.6rem 2rem;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--btn-gold-text);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    animation: popReveal 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.bingo-toast.hidden {
+    display: none;
+}
+
+/* --- Responsivo: una sola columna --- */
+@media (max-width: 1000px) {
+    .app-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .cards-panel {
+        position: static;
+    }
+
+    .cards-list {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+}

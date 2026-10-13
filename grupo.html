@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bingo en Grupo — Sala</title>
+    <link rel="stylesheet" href="grupo.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Playfair+Display:ital,wght@1,500;1,700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="grupo">
+
+<!-- ============ 1. INGRESO (alias obligatorio) ============ -->
+<div class="ingreso-wrap" id="pantallaIngreso">
+    <form class="ingreso-card" id="formIngreso">
+        <h1>Bingo en Grupo</h1>
+        <p class="sub">
+            Escribe tu <strong>alias</strong> para entrar. El <strong>primero que entra canta</strong>
+            (controla el bombo); los demás juegan con sus cartones.
+        </p>
+        <div>
+            <label for="inAlias">Alias o nombre</label>
+            <input class="g-input" id="inAlias" maxlength="16" placeholder="Ej. Ana" autocomplete="off" required>
+        </div>
+        <div>
+            <label for="inSala">Código de sala <small>(vacío = crear sala nueva)</small></label>
+            <input class="g-input codigo" id="inSala" maxlength="4" placeholder="XXXX" autocomplete="off">
+        </div>
+        <div class="g-row">
+            <button class="g-btn" type="submit" id="btnIngresar">Entrar a la sala</button>
+        </div>
+        <p class="g-alert" id="inError"></p>
+    </form>
+</div>
+
+<!-- ============ 2. SALA ============ -->
+<div id="pantallaSala" class="g-hidden" style="display:flex;flex-direction:column;flex:1">
+    <header class="g-header">
+        <div class="g-sala">Sala <strong id="hSala">----</strong></div>
+        <div class="g-yo"><span class="g-online" id="hOnline"></span> <span id="hAlias">—</span></div>
+        <span class="g-chip-rol" id="hRol">JUGADOR</span>
+        <span class="g-spacer"></span>
+        <button class="g-btn ghost mini" id="btnCopiar" type="button">Copiar enlace</button>
+        <button class="g-btn dark mini" id="btnRecargar" type="button">↻</button>
+    </header>
+
+    <main class="g-main">
+
+        <!-- ======= VISTA CANTADOR ======= -->
+        <section id="vistaCantador" class="g-hidden" style="display:flex;flex-direction:column;gap:.8rem">
+            <div class="g-panel">
+                <div class="g-bombo" id="bombo">
+                    <div class="g-digit letra" id="dLetra">A</div>
+                    <div class="g-digit" id="dDecenas">0</div>
+                    <div class="g-digit" id="dUnidades">0</div>
+                </div>
+                <div class="g-botones">
+                    <button class="g-btn" id="btnCantar" type="button">▶ Cantar número</button>
+                    <button class="g-btn dark" id="btnAuto" type="button">⏱️ Auto: OFF</button>
+                    <button class="g-btn ghost" id="btnRepetir" type="button">🗣️ Repetir</button>
+                    <button class="g-btn ghost" id="btnVoz" type="button">🔊 Voz: ON</button>
+                    <button class="g-btn peligro" id="btnReiniciar" type="button">🔄 Nueva ronda</button>
+                </div>
+                <div class="g-historial" id="historial"></div>
+                <p class="g-info" id="infoSorteo" style="margin-top:.5rem;font-size:.78rem;color:#6b4a4a"></p>
+            </div>
+
+            <div class="g-grid-2">
+                <div class="g-panel">
+                    <h3>Jugadores y abonos</h3>
+                    <div class="g-dinero" id="kpis"></div>
+                    <table class="g-tabla">
+                        <thead>
+                            <tr><th>Jugador</th><th>Cartones</th><th>Abono</th><th>Acciones</th></tr>
+                        </thead>
+                        <tbody id="tablaJugadores"></tbody>
+                    </table>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:.8rem">
+                    <div class="g-panel">
+                        <h3>Mesa y dinero</h3>
+                        <div class="g-config">
+                            <div>
+                                <label for="cfAbono">Abono por cartón</label>
+                                <input id="cfAbono" type="number" min="0" step="0.5" inputmode="decimal">
+                            </div>
+                            <div>
+                                <label for="cfMoneda">Moneda</label>
+                                <input id="cfMoneda" maxlength="4">
+                            </div>
+                            <div>
+                                <label for="cfPct">% premio línea</label>
+                                <input id="cfPct" type="number" min="0" max="100" step="5">
+                            </div>
+                            <div>
+                                <label for="cfIntervalo">Auto (segundos)</label>
+                                <input id="cfIntervalo" type="number" min="2" max="30" step="1">
+                            </div>
+                            <div>
+                                <label for="cfTipoLinea">Premio de línea</label>
+                                <select id="cfTipoLinea">
+                                    <option value="fila">Fila horizontal</option>
+                                    <option value="cualquiera">Fila, columna o diagonal</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="cfLetras">Letras</label>
+                                <select id="cfLetras">
+                                    <option value="ABCDE">A B C D E</option>
+                                    <option value="BINGO">B I N G O</option>
+                                </select>
+                            </div>
+                        </div>
+                        <label class="g-check" style="margin-top:.6rem">
+                            <input type="checkbox" id="cfCantoAuto">
+                            Cantar línea/apagón automáticamente al completarse
+                        </label>
+                    </div>
+
+                    <div class="g-panel">
+                        <h3>Novedades</h3>
+                        <ul class="g-novedades" id="novedadesCantador"></ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ======= VISTA JUGADOR ======= -->
+        <section id="vistaJugador" class="g-hidden">
+            <div class="g-jugador">
+                <div class="g-barra-numero">
+                    <div class="g-actual" id="jActual">--</div>
+                    <div class="g-info">
+                        Último número cantado<br>
+                        Faltan <strong id="jRestantes">75</strong> · Línea: <strong id="jPremioLinea">—</strong> · Apagón: <strong id="jPremioApagon">—</strong>
+                    </div>
+                    <span class="g-spacer" style="flex:1"></span>
+                    <button class="g-btn mini" id="btnPedir1" type="button">＋ Cartón</button>
+                    <button class="g-btn ghost mini" id="btnPedir3" type="button">＋3</button>
+                </div>
+
+                <div class="g-cartones" id="cartonesJugador"></div>
+
+                <div class="g-barra-abajo">
+                    <div class="g-monto" id="jMonto">—</div>
+                    <button class="g-btn mini ghost" id="btnAbonar" type="button">✔ Confirmar abono</button>
+                    <label class="g-check">
+                        <input type="checkbox" id="jAuto"> Marcado automático
+                    </label>
+                    <label class="g-check">
+                        <input type="checkbox" id="jAutoCanto"> Cantar solo al completar
+                    </label>
+                    <span class="g-spacer"></span>
+                    <button class="g-btn" id="btnLinea" type="button">🏆 ¡LÍNEA!</button>
+                    <button class="g-btn peligro" id="btnApagon" type="button">🌟 ¡APAGÓN!</button>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<div class="g-toast g-hidden" id="toast"></div>
+
+<script src="grupo.js"></script>
+</body>
+</html>
